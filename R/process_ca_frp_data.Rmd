@@ -15,9 +15,9 @@ output:
 
 This script inputs annual MxD14A1 FRP datasets produced in GEE and outputs an Rdata file for further plotting and analysis.  
 
-_Input files_:  mxda1_gee_yyyy_plus_fire_info.csv, where yyyy = 2002-2016  
+_Input files_:  mxda1_gee_fire_info_yyyy.csv, where yyyy = 2002-2020  
 
-_Output file_:  ak_frp_area_data.RData
+_Output file_:  ca_frp_area_data.RData
 
 ```{r, echo=FALSE}
 # Prior to input, FRP files are processed as follows: 
@@ -46,14 +46,11 @@ load_libraries(c("lubridate", "tidyverse", "dtplyr", "kableExtra", "knitr") )
 # Having raster attached can mess everything up
 # detach("package:raster", unload=TRUE)
 # Set paths
-#path.in <- "D:/projects/ak_fire"
-path.in = "/Users/jessicawalker/Documents/projects/ak_frp"
-#path.r <- "D:/projects/ak_fire/data"
-path.r <- file.path(path.in, "data")
-rdata <- "ak_frp_data_pixel_area.RData"
-#path.plots <- "D:/projects/ak_fire/output/plots/frp"
+path.in = "/home/jovyan/ca_frp"
+path.data <- file.path(path.in, "data")
+rdata <- "ca_frp_data_pixel_area.RData"
 path.plots <- file.path(path.in, "output/plots")
-source(file.path(path.in, "R", "ak_functions.R"))
+source(file.path(path.in, "R", "ca_functions.R"))
 ```
 
 
@@ -62,10 +59,12 @@ source(file.path(path.in, "R", "ak_functions.R"))
 #### Combine annual files ####
 # ---------------------------------------------------------------- #
 # Get the relevant filenames
-#  filenames.in <- list.files(file.path(path.in, "data/intersected"), pattern = "*plus_fire_info_bufferIn600m.csv")
-  filenames.in <- list.files(file.path(path.in, "data/intersected"), pattern = "*_plus_fire_info.csv")
+  #filenames.in <- list.files(file.path(path.in, "data"), pattern = "*_plus_fire_info.csv")
+
+  files_all <- read.csv(file.path(path.data, "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"), header = T)
+
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
-  suppressWarnings(files.all <- do.call(rbind, lapply(file.path(path.in, "data/intersected", filenames.in), read.csv, row.names=NULL)))
+  #suppressWarnings(files.all <- do.call(rbind, lapply(file.path(path.in, "data/intersected", filenames.in), read.csv, row.names=NULL)))
 ```
 
 
@@ -73,7 +72,7 @@ source(file.path(path.in, "R", "ak_functions.R"))
 # ---------------------------------------------------------------- #
 #### Select columns ####
 # ---------------------------------------------------------------- #
-  x.orig <- files.all %>% 
+  x.orig <- files_all %>% 
                 select(index, starts_with('class'), MaxFRP, latitude, longitude,
                        sample, satellite, newdate, FireYear, FIREID, DiscDate) 
  
@@ -153,6 +152,7 @@ names(evt.classes) <- c('evt_number', 'evt_group')
   oldnames = c("index","MaxFRP", "FireYear", "FIREID", "latitude", "longitude")
   newnames = c("ptid", "frp", "fire_year", "fireid", "lat", "lon")
   x.orig <- x.orig %>% rename_at(vars(oldnames), ~ newnames)
+
 # Incoming MODIS frp is scaled by 10; rescale
   x.orig$frp <- 0.1 * x.orig$frp
   

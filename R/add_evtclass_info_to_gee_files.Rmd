@@ -1,0 +1,81 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r, echo=FALSE}
+# Add EVT class info to the intersected GEE/vector data. 
+# Intersected data used the slim files, which had the no EVT class info.
+
+
+```
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+# ---------------------------------------------------------------- #
+#### Set up ####
+# ---------------------------------------------------------------- #
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("dplyr") )
+
+# Set paths
+path.in = "/home/jovyan/ca_frp"
+path.data <- file.path(path.in, "data")
+
+
+```
+
+
+```{r, echo = F}
+# ---------------------------------------------------------------- #
+#### Combine annual files ####
+# ---------------------------------------------------------------- #
+# Get the relevant filenames
+  filenames.in <- list.files(file.path(path.in, "data"), pattern = "*_plus_fire_info.csv")
+
+# Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
+  suppressWarnings(files_w_fire_info <- do.call(rbind, lapply(file.path(path.data, filenames.in), read.csv, row.names=NULL)))
+```
+
+```{r, echo = F}
+# ---------------------------------------------------------------- #
+#### Combine full-EVT FRP files ####
+# ---------------------------------------------------------------- #
+# Get the relevant filenames
+  filenames_frp <- list.files(file.path(path.data, "gee"), pattern = "*_processed.csv")
+
+# Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
+  suppressWarnings(files_w_frp_info <- do.call(rbind, lapply(file.path(path.data, "gee", filenames_frp), read.csv, row.names=NULL)))
+```
+
+
+```{r, echo = F}
+# ---------------------------------------------------------------- #
+#### Join both files ####
+# ---------------------------------------------------------------- #
+
+
+joined_file <- files_w_fire_info %>% left_join(files_w_frp_info, by = c("index")) #, "newdate", "latitude", "longitude"))
+
+
+```
+
+
+```{r, echo = F}
+# ---------------------------------------------------------------- #
+#### Join both files ####
+# ---------------------------------------------------------------- #
+
+
+write.csv(joined_file, file.path(path.data, "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"), row.names = FALSE)
+
+
+```

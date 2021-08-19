@@ -11,7 +11,7 @@ output:
 ---
 
 
-####_process_ca_frp_data.Rmd_
+####_3_process_ca_frp_data.Rmd_
 
 This script inputs annual MxD14A1 FRP datasets produced in GEE and outputs an Rdata file for further plotting and analysis.  
 
@@ -21,17 +21,17 @@ _Output file_:  ca_frp_area_data.RData
 
 ```{r, echo=FALSE}
 # Prior to input, FRP files are processed as follows: 
-#  * Formatted from GEE format to ArcMap-ready (_format_gee_file_for_import_into_arc.R_)
+#  * Formatted from GEE format to ArcMap-ready (_1_format_gee_file_for_import_into_arc.R_)
 #  * Intersected with the BLM fire history file (_intersect_frp_data_with_fire_perimeters.py_) to combine 
 #    * FRP data
-#    * EVT data (in the coincident MODIS 1-km pixel)
-#    * Fire history information
+#    * Fire history information  
+#  * Joined with EVT information (_2_add_evtclass_to_gee_files.Rmd_)
 ```
 
 
-```{r, echo = FALSE, message=FALSE, warning=FALSE}
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
 # ---------------------------------------------------------------- #
-#### Set up ####
+#### Set up directories and filenames ####
 # ---------------------------------------------------------------- #
 load_libraries <- function(libs){
   for(lib in libs){
@@ -42,15 +42,18 @@ load_libraries <- function(libs){
   }
 }
 #  Try/install packages
-load_libraries(c("lubridate", "tidyverse", "dtplyr", "kableExtra", "knitr") )
+load_libraries(c("lubridate", "dplyr", "dtplyr", "kableExtra", "knitr") )
+install.packages('dplyr')
+library(dplyr, lubridate)
 # Having raster attached can mess everything up
 # detach("package:raster", unload=TRUE)
+
 # Set paths
-path.in = "/home/jovyan/ca_frp"
-path.data <- file.path(path.in, "data")
+path_in = "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
 rdata <- "ca_frp_data_pixel_area.RData"
-path.plots <- file.path(path.in, "output/plots")
-source(file.path(path.in, "R", "ca_functions.R"))
+path.plots <- file.path(path_in, "output/plots")
+source(file.path(path_in, "R", "ca_functions.R"))
 ```
 
 
@@ -58,13 +61,14 @@ source(file.path(path.in, "R", "ca_functions.R"))
 # ---------------------------------------------------------------- #
 #### Combine annual files ####
 # ---------------------------------------------------------------- #
-# Get the relevant filenames
-  #filenames.in <- list.files(file.path(path.in, "data"), pattern = "*_plus_fire_info.csv")
 
-  files_all <- read.csv(file.path(path.data, "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"), header = T)
+# Get the relevant filename
+  #filenames.in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info.csv")
+
+  files_all <- read.csv(file.path(path_data, "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"), header = T)
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
-  #suppressWarnings(files.all <- do.call(rbind, lapply(file.path(path.in, "data/intersected", filenames.in), read.csv, row.names=NULL)))
+  #suppressWarnings(files.all <- do.call(rbind, lapply(file.path(path_in, "data/intersected", filenames.in), read.csv, row.names=NULL)))
 ```
 
 
@@ -72,9 +76,9 @@ source(file.path(path.in, "R", "ca_functions.R"))
 # ---------------------------------------------------------------- #
 #### Select columns ####
 # ---------------------------------------------------------------- #
-  x.orig <- files_all %>% 
-                select(index, starts_with('class'), MaxFRP, latitude, longitude,
-                       sample, satellite, newdate, FireYear, FIREID, DiscDate) 
+  x_orig <- files_all %>% 
+                select(index,  MaxFRP.x, latitude.x, longitude.x, ALARM_DATE,
+                       sample, satellite, newdate.y, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, pixelarea, starts_with('class')) 
  
 ```
 
@@ -83,59 +87,16 @@ source(file.path(path.in, "R", "ca_functions.R"))
 # ---------------------------------------------------------------- #
 #### Define EVT columns ####
 # ---------------------------------------------------------------- #
-# Read in data file from GDrive
-# MyDrive/Work/projects/ak_frp/frp_evt_classes.csv...for some reason the Google Doc version wouldn't work
-data_url <- "1ijlTvo4y6cH75Z247MpZ4szAecj3ff7z" # google file ID
-evt.classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
-# Add 'class' to each class #
-evt.classes$evt_class <- paste0('class', evt.classes$evt_class)
+# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_classes_found_in_ca.csv"
+
+data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID
+evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
+
+
 # Change column names to conform to existing 
-names(evt.classes) <- c('evt_number', 'evt_group')
-# 
-# 
-# # change to automatically read in from GDrive
-# # Define EVT classes and consolidated groups
-#   evt.classes <- data.frame(evt_number =  
-#                 c("class11", "class12", "class21", "class2197","class22","class23", "class24",
-#                   "class2600", "class2601","class2602","class2603", "class2604","class2605","class2606","class2607","class2608","class2609",
-#                   "class2610","class2611","class2612",
-#                   "class2631","class2633","class2634","class2635","class2636","class2638", "class2639",
-#                   "class2640", "class2642", "class2643", "class2644", "class2645", "class2646", "class2648", "class2649",
-#                   "class2651", "class2652",
-#                   "class2671","class2677","class2678", "class2679",
-#                   "class2682", "class2683", "class2684", "class2685","class2686", "class2687", "class2688", "class2689",
-#                   "class2690", "class2691", "class2692", "class2699",
-#                   "class2709", "class2718", "class2719", 
-#                   "class2720", 
-#                   "class2730",
-#                   "class2740","class2741", "class2742","class2743","class2744","class2745","class2746", "class2747",
-#                   "class2751","class2753","class2756", "class2757", "class2758",
-#                   "class2761", "class2762", "class2763","class2764",
-#                   "class2771", "class2772", "class2773", "class2774", "class2776","class2777",
-#                   "class2781", "class2782","class2783", "class2784", "class2785", "class2786", 
-#                   "class2791", "class2792", "class2793", "class2794","class31", 
-#                   "class81", "class82"),
-# 
-#   evt_group = c("Water", "Snow", "Developed", "Burned", "Developed", "Developed", "Developed",
-#                    "WhtSpruce", "WhtSpruce", "BlkSpruce", "WhtSpruce", "BlkSpruce", "BirchAspen", "Aspen", 
-#                    "BalsPopAsp", 
-#                    "Shrubland", "Shrubland", "Shrubland", "Grassland", "Grassland","Shrubland", 
-#                    "Grassland", 
-#                    "Shrubland", "Shrubland", "Shrubland", "Shrubland", "Shrubland", "Shrubland", 
-#                    "BirchAspen", "Shrubland", "Spruce", "Grassland", 
-#                    "Hemlock", "Hemlock", "Hemlock", 
-#                     "Grassland", "Shrubland", "Grassland",
-#                    "WhtSpruce", "WhtSpruce", "WhtSpruce", "Shrubland", 
-#                    "Tundra", "Tundra", "Tundra", "Tundra", "Tundra",
-#                    "Shrubland", "Shrubland", "Shrubland", 
-#                    "Tundra", "Tundra", 
-#                    "Grassland", "Grassland", 
-#                    "Shrubland", "Shrubland", "Shrubland", "Peatland", "Marsh", "Tidal",
-#                    "Tidal", "Wetland", "Wetland", "Wetland", "Wetland", "Grassland", "Wetland",
-#                    "BlkSpruce", "Shrubland", "Shrubland", "Shrubland", "Floodplain", "Floodplain", "Floodplain",
-#                    "Floodplain", "Peatland", "Peatland", "Peatland", "Peatland", "Shrubland", "Swamp",
-#                    "Tundra", "Tundra", "Tundra", "Tundra", "Tundra","Tundra", "Barren", "Barren", "Barren",
-#                    "Barren", "Barren", "Agriculture", "Agriculture"))
+names(evt_classes) <- c('evt_number', 'description', 'evt_group')
+ 
+
 ```
 
 
@@ -143,95 +104,114 @@ names(evt.classes) <- c('evt_number', 'evt_group')
 # ---------------------------------------------------------------- #
 #### File clean up and formatting ####
 # ---------------------------------------------------------------- #
+
 # Point ID ('index') is unique to each point, though the same ID can occur in multiple rows since
 # a single point may have burned in multiple fires. The input format is unwieldy; replace with 
 # a simpler sequence of sequential numbers.
-  levels(x.orig$index) <- c(seq(1:length(levels(x.orig$index))))
+
+  x_orig <- x_orig %>% 
+            mutate(index = as.factor(index))
+
+  levels(x_orig$index) <- c(seq(1:length(levels(x_orig$index))))
   
 # Rename columns  
-  oldnames = c("index","MaxFRP", "FireYear", "FIREID", "latitude", "longitude")
-  newnames = c("ptid", "frp", "fire_year", "fireid", "lat", "lon")
-  x.orig <- x.orig %>% rename_at(vars(oldnames), ~ newnames)
+  oldnames = c("index","MaxFRP.x", "newdate.y", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude.x", "longitude.x")
+  newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon")
+  x_orig <- x_orig %>% rename_at(vars(oldnames), ~ newnames)
 
 # Incoming MODIS frp is scaled by 10; rescale
-  x.orig$frp <- 0.1 * x.orig$frp
+  x_orig$frp <- 0.1 * x_orig$frp
   
 # Remove NA-only columns
-  x.orig <- Filter(function(y) !all(is.na(y)), x.orig)
-# Remove rows in which frp == NA
-  x.orig <- x.orig[!is.na(x.orig$frp), ]
+  x_orig <- Filter(function(y) !all(is.na(y)), x_orig)
+
+  # Remove rows in which frp == NA
+  x_orig <- x_orig[!is.na(x_orig$frp), ]
   
 # Remove rows in which all classes == NA
- # col_start <- which(colnames(x.orig) == "class11")
- # col_end <- which(colnames(x.orig) == "class82")
- # x.orig <- x.orig[!apply(x.orig[col_start:col_end], 1, function(x) all(is.na(x))), ]
+ # col_start <- which(colnames(x_orig) == "class11")
+ # col_end <- which(colnames(x_orig) == "class82")
+ # x_orig <- x_orig[!apply(x_orig[col_start:col_end], 1, function(x) all(is.na(x))), ]
   
 # Format date columns and remove old ones
-  x.orig$modis_date <- as.Date(x.orig$newdate, format = "%m/%d/%Y")  #"%Y-%m-%d")
-  x.orig$fire_date <- as.Date(x.orig$DiscDate, format = "%m/%d/%Y")
-  x.orig$modis_year <- year(x.orig$modis_date)
+  x_orig$modis_date <- as.Date(x_orig$modis_date, format = "%Y-%m-%d")  #"%Y-%m-%d")
+  x_orig$fire_date <- as.Date(x_orig$fire_date, format = "%m/%d/%Y %H:%M:%S")
+  x_orig$modis_year <- year(x_orig$modis_date)
   
 # Ensure point id is a factor
-  x.orig$ptid <- factor(x.orig$ptid)
+  x_orig$ptid <- factor(x_orig$ptid)
+  
 # Remove unneeded columns
-  x.orig <- x.orig %>% select(-c(DiscDate, newdate))
+# x_orig <- x_orig %>% select(-c(DiscDate, newdate))
   
 # Remove all rows in which the modis date preceeds the fire date
-#   x.orig <- x.orig[which(x.orig$modis_date < x.orig$fire_date), ]
+#   x_orig <- x_orig[which(x_orig$modis_date < x_orig$fire_date), ]
 ```
 ###Assemble new dataframe of fires
+
 
 ```{r, echo=FALSE, warning=F}
 # ---------------------------------------------------------------- #
 #### Set up the new fire df ####
 # ---------------------------------------------------------------- #
+
 # We need a row for each unique fire_year and modis_year.
-# fire_years are derived from the BLM fire history database; modis_years are from FRP data.
-# Both are necessary since some modis_years do not have a corresponding BLM fire_year.
+# fire_years are derived from the CA fire history database; modis_years are from FRP data.
+# Both are necessary since some modis_years do not have a corresponding fire_year.
 # Each will have an FRP value for each MODIS year; pre-MODIS years get frp = NA.
+
 # Set up df to hold entries for all points
-  x.holder <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),  c('ptid', 'lat', 'long', 'fire_year', 'frp', 'fireid', 'sample', 'satellite'))
+  x_holder <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),  c('ptid', 'lat', 'long', 'fire_year', 'frp', 'fireid', 'sample', 'satellite'))
+
 # Create df without classes
-  x.noclasses <- x.orig %>% select(-starts_with('class'))
+  x_noclasses <- x_orig %>% select(-starts_with('class'))
   
 # Create df of classes info for each pixel. Remove duplicates to get 1 row for each ptid. Include areal sum for each pixel
-  x.classes <- x.orig %>% 
+  x_classes <- x_orig %>% 
                 select(ptid, starts_with('class')) %>% 
                 distinct(ptid, .keep_all = T) %>% 
                 mutate(evt_sum = rowSums(.[,-1], na.rm = TRUE))
 ```
 
+
 ```{r, echo=FALSE}
 # ---------------------------------------------------------------- #
 #### Function to create new fire df ####
 # ---------------------------------------------------------------- #
+
 # For each ptid:
-# - get unique years from combined set of fire years and modis years
+# - Get unique years from combined set of fire years and modis years
 #   (both are necessary b/c some modis years are not associated with a BLM fire) 
-# - construct a new dataframe with invariant info (lat, long, evt)
-# - replicate for the number of years 
+# - Construct a new dataframe with invariant info (lat, long, evt)
+# - Replicate for the number of years 
+
 create_new_fire_df = function(f) {
-  # Trim factor levels
+
+    # Trim factor levels
   f$ptid <- factor(f$ptid)
+  
   # Create list of all unique fire and MODIS years. 
   years <- unique(c(f$fire_year, f$modis_year))
   
   # Set up new df with invariant point info for given # of years
-  f.new <- f[1, c("ptid", "lat", "lon")] %>% slice(rep(1:n(), each = length(years)))
-  # Add fire years
-  f.new <- cbind(f.new, fire_year = years)
+  f_new <- f[1, c("ptid", "lat", "lon")] %>% slice(rep(1:n(), each = length(years)))
+
+    # Add fire years
+  f_new <- cbind(f_new, fire_year = years)
+
   # Get the frp corresponding to the modis year. Years preceeding modis era get NA
   # 'distinct' is to catch duplicates of modis year/frp, since the same frp is recorded for 
   # multiple fire years that preceed the modis era
-  merge1 <- left_join(f.new, distinct(dplyr::select(f, modis_year, frp, sample, satellite)), by = c("fire_year" = "modis_year"))
+  merge1 <- left_join(f_new, distinct(dplyr::select(f, modis_year, frp, sample, satellite)), by = c("fire_year" = "modis_year"))
      
   # Join to get fire_id, etc.
   merge2 <- merge1 %>% left_join(distinct(dplyr::select(f, fireid, fire_year), fire_year, .keep_all = T), by = c("fire_year"))
   
   # Consolidate wth holder dataframe
-   x.holder <- rbind(x.holder, merge2)
+   x_holder <- rbind(x_holder, merge2)
    
-   return(x.holder) 
+   return(x_holder) 
+   
   }
 ```  
 
@@ -239,22 +219,26 @@ create_new_fire_df = function(f) {
 # ---------------------------------------------------------------- #
 #### Create new fire dataframe ####
 # ---------------------------------------------------------------- #
+
 # ** THIS TAKES A WHILE **
-# *** like, 45 min or so ***
+# *** like, 45 min, even on Pangeo ***
 # apply fcn to each ptid faction
-lst.fires <- x.noclasses %>% 
+lst_fires <- x_noclasses %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
+
 # Convert from df of lists to just a df
-x.fires.noevt <- data.frame(lst.fires)
-x.fires.noevt <- x.fires.noevt[order(x.fires.noevt$ptid, x.fires.noevt$fire_year), ]
+x_fires_noevt <- data.frame(lst_fires)
+x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year), ]
+
 # Remove all rows in which MODIS-era fires have an NA FRP
 # dplyr rocks with the anti_join
-frpNA <- subset(x.fires.noevt, is.na(frp) & fire_year > 2001)
-x.fires.noevt <- x.fires.noevt %>% anti_join(., frpNA)
+frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
+x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
+
 # This is a temporary measure to get rid of 2000 and 2001 frp values; should not have been imported
-#frp2000_1 <- subset(x.fires.noevt, !is.na(frp) & (fire_year == 2000 | fire_year == 2001))
-#x.fires.noevt <- x.fires.noevt %>% anti_join(., frp2000_1)
+#frp2000_1 <- subset(x_fires_noevt, !is.na(frp) & (fire_year == 2000 | fire_year == 2001))
+#x_fires_noevt <- x_fires_noevt %>% anti_join(., frp2000_1)
 ```
 
   
@@ -280,8 +264,8 @@ x.fires.noevt <- x.fires.noevt %>% anti_join(., frpNA)
 ```{r, echo = FALSE}
 # new strategy: remove all points that have an FRP reading wthout an associated fire ID
 # this step constrains points to only those within identified fire boundaries
-tmp <- subset(x.fires.noevt, is.na(fireid) & !is.na(frp))
-x.fires.noevt <- x.fires.noevt %>% filter(!(ptid %in% tmp$ptid))
+tmp <- subset(x_fires_noevt, is.na(fireid) & !is.na(frp))
+x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
                                           
 ```
 
@@ -290,7 +274,7 @@ x.fires.noevt <- x.fires.noevt %>% filter(!(ptid %in% tmp$ptid))
 # ---------------------------------------------------------------- #
 #### Get burn number for each point ####
 # ---------------------------------------------------------------- #
-x.fires.noevt <- get_fire_order(x.fires.noevt)
+x_fires_noevt <- get_fire_order(x_fires_noevt)
 ```
 
 ```{r, echo = FALSE}
@@ -298,15 +282,16 @@ x.fires.noevt <- get_fire_order(x.fires.noevt)
 #### Merge fire df with EVT classes ####
 # ---------------------------------------------------------------- #
 # Necessary housekeeping
-x.fires.noevt$ptid <- as.factor(x.fires.noevt$ptid)
-x.fires.noevt$satellite <- as.factor(x.fires.noevt$satellite)
-x.classes$ptid <- as.numeric(x.classes$ptid)
+x_fires_noevt$ptid <- as.factor(x_fires_noevt$ptid)
+x_fires_noevt$satellite <- as.factor(x_fires_noevt$satellite)
+x_classes$ptid <- as.numeric(x_classes$ptid)
+
 # Merge
-x.fires.evt <- merge(x.fires.noevt, x.classes, by = c("ptid"), all.x = T)
+x.fires.evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
 ```
 The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. Example of a point with multiple associated fires (without class info):
 
-`r x.noclasses %>%
+`r x_noclasses %>%
           filter(ptid == x.fires.evt[x.fires.evt$burn_num == 4, ][[1]][1]) %>% 
           arrange(fire_year) %>% 
           kable() %>%
@@ -315,7 +300,7 @@ The ingested dataset has redundancies because FRP pixels are paired with each co
 
 After processing, the same point id has this format:
 
-`r x.fires.noevt %>%
+`r x_fires_noevt %>%
   filter(ptid == x.fires.evt[x.fires.evt$burn_num == 4,][[1]][1]) %>% 
   kable() %>%
   kable_styling()`

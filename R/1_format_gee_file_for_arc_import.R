@@ -1,23 +1,28 @@
 ########################################################################### #
 # 
-# format_gee_file_for_arc_import.R
+# 1_format_gee_file_for_arc_import.R
 #
 # This helper module imports the csv files that result from running the script
-# FRP_EVT in GEE. It reformats column headings so they can be read in Arc; 
-# output files can be then processed via the python script 
+# FRP_EVT in GEE. It reeformats column headings so they can be read in Arc. 
+# Output files can be then processed via the python script 
+# 
 # intersect_frp_data_with_fire_perimeters.py
 #
 # Rbinding into a single file creates a world of trouble for Arc, hence the 
 # multiple-file output.
 #
-# Input: home/jovyan/ca_frp/data/gee + files of maxFRP_CA_gte4sqkm_yyyy.csv
-# Output: home/jovyan/ca_frp/data/gee + files of maxFRP_CA_gte4sqkm_yyyy_processed.csv
+# Input: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy.csv
+# Output: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy_processed.csv
 #
-# Output2: maxFRP_CA_gte4sqkm_yyyy_processed_slim.csv was necessary to complete the ArcMap intersection
+# To complete the next step (intersection of GEE files with vector fire data),
+# outputting files with all 100+ EVT classes removed was necessary:
+#
+# Output2: maxFRP_CA_gte4sqkm_yyyy_processed_slim.csv 
+#
 #
 ########################################################################### #
 
-#library(dplyr)
+library(dplyr)
 
 # Set path info
 path.in = "/home/jovyan/ca_frp/data/gee/"
@@ -82,7 +87,7 @@ for (filename.in in filenames.in) {
   # save output
   #write.csv(x, file = file.path(path.in, filename.out), row.names = FALSE)
   
-  # drop all 'class' columns
+  # remove EVT classes by dropping all 'class' columns
   x <- x %>% select(-contains('class'))
   
   #write.csv(x, file = file.path(path.in, filename2.out), row.names = FALSE)

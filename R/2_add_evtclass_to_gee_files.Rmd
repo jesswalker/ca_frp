@@ -11,7 +11,7 @@ output: html_notebook
 # 
 # 2_add_evtclass_to_gee_files.Rmd
 #
-# This helper script addsEVT classes to the intersected GEE/vector fire files,
+# This helper script adds EVT classes to the intersected GEE/vector fire files,
 # which have information for fires but lack EVT info.
 
 # Input: maxFRP_CA_gte4sqkm_yyyy_plus_fire_info.csv
@@ -43,7 +43,7 @@ load_libraries <- function(libs){
   }
 }
 #  Try/install packages
-load_libraries(c("dplyr") )
+load_libraries(c("dplyr"))
 
 # Set paths
 path_in = "/home/jovyan/ca_frp"
@@ -58,6 +58,9 @@ path_data <- file.path(path_in, "data")
 # ---------------------------------------------------------------- #
 #### Merge files that have fire info but lack EVT classes ####
 # ---------------------------------------------------------------- #
+
+# This file contains fewer points because it excludes GEE pixel centroids that do not intersect
+# a known fire perimeter. 
 
 # Get relevant filenames
   filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info.csv")

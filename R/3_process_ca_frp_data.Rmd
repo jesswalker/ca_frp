@@ -179,12 +179,13 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group')
 
 ####Save data
 
-RData file is saved to `r file.path(path.r, rdata)`
+RData file is saved to `r file.path(path_r, rdata)`
 
 ```{r, echo=FALSE}
 
 # Save data and environment settings   
 print(paste0("R data file saved to ", file.path(path_r, rdata)))
-save.image(file = file.path(path_r, rdata))
+#save.image(file = file.path(path_r, rdata))
+save(x_holder, x_noclasses, x_classes, file = file.path(path_r, rdata) )
 
 ```

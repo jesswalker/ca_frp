@@ -1,5 +1,5 @@
 ---
-title:  "Generate fire stats and data"
+title:  "Generate fire stats"
 author: "JJWalker"
 date: "2021-08-25"
 output:
@@ -13,9 +13,9 @@ output:
 
 ####_5_generate_stats_and_plots.Rmd_
 
-This script generates stats and plots based on previously processed data.  
+This script generates stats based on previously processed data.  
 
-_Input files_:  processed_data_after_creating_new_df.RData
+_Input files_:  new_fire_df.RData
 
 _Output file_:  
 
@@ -35,16 +35,22 @@ load_libraries <- function(libs){
   }
 }
 #  Try/install packages
-load_libraries(c("lubridate", "dplyr") )
-library(dplyr, lubridate)
+load_libraries(c("lubridate", "dplyr")) #, "kableExtra", "knitr") )
+#devtools::install_github("haozhu233/kableExtra")
+#library(kableExtra)
 
 # Set paths
 path_in = "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
-source(file.path(path_in, "R", "ca_functions.R"))
+path_r <- file.path(path_in, 'R')
+source(file.path(path_r, "ca_functions.R"))
 ```
 
+```{r}
 
+load(file.path(path_r,'new_fire_df.RData'))
+
+```
 
 ```{r, echo = FALSE}
 # ---------------------------------------------------------------- #
@@ -66,8 +72,10 @@ source(file.path(path_in, "R", "ca_functions.R"))
 
 
 ```{r, echo = FALSE}
-# new strategy: remove all points that have an FRP reading wthout an associated fire ID
+
+# Remove all points that have an FRP reading wthout an associated fire ID
 # this step constrains points to only those within identified fire boundaries
+
 tmp <- subset(x_fires_noevt, is.na(fireid) & !is.na(frp))
 x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
                                           
@@ -75,13 +83,16 @@ x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
 
 
 ```{r, echo = FALSE}
+
 # ---------------------------------------------------------------- #
 #### Get burn number for each point ####
 # ---------------------------------------------------------------- #
 x_fires_noevt <- get_fire_order(x_fires_noevt)
+
 ```
 
 ```{r, echo = FALSE}
+
 # ---------------------------------------------------------------- #
 #### Merge fire df with EVT classes ####
 # ---------------------------------------------------------------- #
@@ -91,12 +102,13 @@ x_fires_noevt$satellite <- as.factor(x_fires_noevt$satellite)
 x_classes$ptid <- as.numeric(x_classes$ptid)
 
 # Merge
-x.fires.evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
+x_fires_evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
+
 ```
 The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. Example of a point with multiple associated fires (without class info):
 
 `r x_noclasses %>%
-          filter(ptid == x.fires.evt[x.fires.evt$burn_num == 4, ][[1]][1]) %>% 
+          filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4, ][[1]][1]) %>% 
           arrange(fire_year) %>% 
           kable() %>%
           kable_styling()`
@@ -105,7 +117,7 @@ The ingested dataset has redundancies because FRP pixels are paired with each co
 After processing, the same point id has this format:
 
 `r x_fires_noevt %>%
-  filter(ptid == x.fires.evt[x.fires.evt$burn_num == 4,][[1]][1]) %>% 
+  filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4,][[1]][1]) %>% 
   kable() %>%
   kable_styling()`
   
@@ -125,35 +137,38 @@ After EVT classes are added back to the dataframe, the process is to:
 3. Remove pixels in which none of the classes had a majority
 
 ```{r, echo = FALSE, warning = F}
+
 # ---------------------------------------------------------------- #
 #### Process EVT classes ####
 # ---------------------------------------------------------------- #
   
   # Record the EVT class that had the greatest area in each 1-km MODIS pixel
-  x.fires.evt$max_evt_cat <- apply(x.fires.evt, 1, function(y) names(y[grepl("class", names(y))])[which.max(y[grepl("class", names(y))])[1]])
+  x_fires_evt$max_evt_cat <- apply(x_fires_evt, 1, function(y) names(y[grepl("class", names(y))])[which.max(y[grepl("class", names(y))])[1]])
   
   # ...record the area that class represented
-  x.fires.evt$max_evt_area <- apply(x.fires.evt[grepl("class", names(x.fires.evt))], 1, max, na.rm = TRUE)
+  x_fires_evt$max_evt_area <- apply(x_fires_evt[grepl("class", names(x_fires_evt))], 1, max, na.rm = TRUE)
   
   # ...calculate the proportion of pixels that class represented
-  x.fires.evt$max_evt_prop <- x.fires.evt$max_evt_area/x.fires.evt$evt_sum
+  x_fires_evt$max_evt_prop <- x_fires_evt$max_evt_area/x_fires_evt$evt_sum
   # Remove rows in which max_class == NA; this means none of the classes had a majority
-  x.fires.evt <- x.fires.evt[!is.na(x.fires.evt$max_evt_cat), ]
+  x_fires_evt <- x_fires_evt[!is.na(x_fires_evt$max_evt_cat), ]
   # Convert to factor
-  x.fires.evt$max_evt_cat <- as.factor(x.fires.evt$max_evt_cat)
+  x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
   # Merge with file of EVT classes to associate a name with each class
-  x.fires.evt <- merge(x.fires.evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
+  x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
   
   # Get rid of all individual classes. dplyr rocks!
-  x.fires.evt <- x.fires.evt %>% select(-starts_with('class'))
+  x_fires_evt <- x_fires_evt %>% select(-starts_with('class'))
   
   # Convert burn_num to factor
-  x.fires.evt$burn_num <- as.factor(x.fires.evt$burn_num)
+  x_fires_evt$burn_num <- as.factor(x_fires_evt$burn_num)
   
   # Rearrange 
-  x.fires.evt <- x.fires.evt %>% select(ptid:evt_group, max_evt_cat)
+  x_fires_evt <- x_fires_evt %>% select(ptid:evt_group, max_evt_cat)
+
 ```
-`r x.fires.evt %>%
+
+`r x_fires_evt %>%
   filter(ptid == 5767) %>% 
   arrange(fire_year) %>% 
   kable() %>%
@@ -163,14 +178,15 @@ After EVT classes are added back to the dataframe, the process is to:
 ###Summary stats
   
 ```{r, echo = F}
+
 # ---------------------------------------------------------------- #
 #### Calculate summary stats ####
 # ---------------------------------------------------------------- #
 # FRP by burn count (data)
-x.frp.summary <- x.fires.evt.new %>%
+x.frp.summary <- x_fires_evt %>%
                  group_by(burn_num) %>%
-                 summarize(meanFRP = mean(frp_adj, na.rm = T),
-                           medFRP = median(frp_adj, na.rm = T),
+                 summarize(meanFRP = mean(frp, na.rm = T),
+                           medFRP = median(frp, na.rm = T),
                            n = length(burn_num))
 # > x.frp.summary
 # # A tibble: 8 x 4
@@ -184,20 +200,24 @@ x.frp.summary <- x.fires.evt.new %>%
 # 6 6           65.1   45.7    37
 # 7 7           62.3   40.6     9
 # 8 8           21.0   15.3     4
+
 ```
+
 ####Overall FRP summary
+
 `r x.frp.summary %>%
       kable(digits = 1) %>%
       kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)`
 
 ```{r, echo=FALSE}
+
 # Get # of EVT classes with majorities
-x.maxevt.gp <- x.fires.evt.new %>% 
+x_maxevt_gp <- x_fires_evt %>% 
                   group_by(evt_group, burn_num) %>%
                   summarize (meanFRP = mean(frp, na.rm = T), 
                             medFRP = median(frp, na.rm = T), 
                             n = length(burn_num))
-# > as.data.frame(x.maxevt.gp)
+# > as.data.frame(x_maxevt_gp)
 #      evt_group burn_num   meanFRP medFRP     n
 # 1  Agriculture        1       NaN     NA    27
 # 2  Agriculture        2  62.40000  45.60    27
@@ -271,21 +291,26 @@ x.maxevt.gp <- x.fires.evt.new %>%
 # 70   WhtSpruce        2 294.40111 138.80  4424
 # 71   WhtSpruce        3 383.90184 197.60   327
 # 72   WhtSpruce        4 143.13333 150.00     9
+
 # Keep only those levels that have at least 10 points
-x.maxevt.gp.top <- x.maxevt.gp[x.maxevt.gp$n > 10, ]
+x_maxevt_gp_top <- x_maxevt_gp[x_maxevt_gp$n > 10, ]
+
 # Keep only those classes that have at least 2 burn levels
-x.maxevt.gp.top <- x.maxevt.gp.top[!(as.numeric(x.maxevt.gp.top$evt_group) %in% which(table(x.maxevt.gp.top$evt_group) < 2)), ]
+x_maxevt_gp_top <- x_maxevt_gp_top[!(as.numeric(x_maxevt_gp_top$evt_group) %in% which(table(x_maxevt_gp_top$evt_group) < 2)), ]
+
 ```
 
 ####FRP summary by primary EVT class
-`r x.maxevt.gp.top %>%
+
+`r x_maxevt_gp_top %>%
       kable(digits = 1) %>%
       kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)`
       
       
 ```{r, echo = FALSE}
+
 # Calculate area of fire pixels per year (in hectares)
-x.area.summary <- x.fires.evt.new %>% 
+x_area_summary <- x_fires_evt %>% 
                     group_by(fire_year) %>% 
                     filter(fire_year > 2001) %>% 
                     summarize(sum_area = sum(evt_sum)*1e-4)  # 1 m^2 = 1e-4
@@ -308,42 +333,43 @@ x.area.summary <- x.fires.evt.new %>%
 # 13      2014   74602.
 # 14      2015 1249929.
 # 15      2016  124953.
+
 ```
 
 
 
 ####FRP summary of fire pixel area detected per year (in hectares)
 
-`r x.area.summary %>%
+`r x_area_summary %>%
       kable(digits = 1) %>%
       kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)`
 
 ```{r, echo= FALSE}
+
 # Retain only the 1st fire in the MODIS era to ensure the veg type is applicable
-x.temp1 <- x.fires.evt.new %>% 
+x_temp1 <- x_fires_evt %>% 
   filter(fire_year > 2001) %>% 
   group_by(ptid) %>% 
   arrange(fire_year) %>% 
   slice(1) %>% 
   ungroup()
-x.temp2 <- x.fires.evt.new %>% 
+
+x_temp2 <- x_fires_evt %>% 
   filter(fire_year <= 2001)
            
            
-x.fires.evt.1stfrp <- rbind(x.temp1, x.temp2)
+x_fires_evt_1stfrp <- rbind(x_temp1, x_temp2)
+
 ```
 
 
 ####Save data
 
-RData file is saved to `r file.path(path.r, rdata)`
+RData file is saved to `r file.path(path_r, rdata)`
 ```{r, echo=FALSE}
+
 # Save data and environment settings   
-print(paste0("R data file saved to ", file.path(path.r, rdata)))
-save.image(file = file.path(path.r, rdata))```
+print(paste0("R data file saved to ", file.path(path_r, rdata)))
+save.image(file = file.path(path_r, rdata))
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
-
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
-
-The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```

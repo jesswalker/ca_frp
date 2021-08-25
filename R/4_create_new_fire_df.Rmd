@@ -17,7 +17,7 @@ This script creates new, merged data of EVT and fire perimeter information.
 
 _Input files_:  processed_data_prior_to_new_df.RData  
 
-_Output file_:  ca_frp_area_data.RData
+_Output file_:  new_fire_df.RData
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -40,8 +40,7 @@ library(dplyr, lubridate)
 # Set paths
 path_in = "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
-rdata <- "ca_frp_data_pixel_area.RData"
-source(file.path(path_in, "R", "ca_functions.R"))
+rdata <- "new_fire_df.RData"
 ```
 
 ```{r}
@@ -51,6 +50,7 @@ load(file.path(path_in, "R",'processed_data_prior_to_new_df.RData'))
 ```
 
 ```{r, echo=FALSE}
+
 # ---------------------------------------------------------------- #
 #### Function to create new fire df ####
 # ---------------------------------------------------------------- #
@@ -88,7 +88,8 @@ create_new_fire_df = function(f) {
    
    return(x_holder) 
    
-  }
+}
+
 ```  
 
 ```{r, echo=FALSE}
@@ -106,6 +107,7 @@ x_noclasses_ptid_gt20000 <-  subset(x_noclasses, ptid2 > 20000)
 
 
 ```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+
 # ---------------------------------------------------------------- #
 #### Create new fire dataframe ####
 # ---------------------------------------------------------------- #
@@ -113,9 +115,11 @@ x_noclasses_ptid_gt20000 <-  subset(x_noclasses, ptid2 > 20000)
 # ** THIS TAKES A WHILE **
 # *** ~45 min even on Pangeo ***
 # apply fcn to each ptid faction
-lst_fires <- x_noclasses %>% 
-            group_by(ptid) %>%
-            do(create_new_fire_df(.))
+
+# Does not run as a single try
+#lst_fires <- x_noclasses %>% 
+#            group_by(ptid) %>%
+#            do(create_new_fire_df(.))
 
 lst_fireslte10000 <- x_noclasses_ptid_lte10000 %>% 
             group_by(ptid) %>%
@@ -131,7 +135,6 @@ lst_firesgt20000 <- x_noclasses_ptid_gt20000 %>%
 
 lst_fires <- rbind(lst_fireslte10000, lst_fireslte20000, lst_firesgt20000)
 
-
 # Convert from df of lists to just a df
 x_fires_noevt <- data.frame(lst_fires)
 x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year), ]
@@ -141,18 +144,15 @@ x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year
 frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
 x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 
-# This is a temporary measure to get rid of 2000 and 2001 frp values; should not have been imported
-#frp2000_1 <- subset(x_fires_noevt, !is.na(frp) & (fire_year == 2000 | fire_year == 2001))
-#x_fires_noevt <- x_fires_noevt %>% anti_join(., frp2000_1)
 ```
 
 
 
 ```{r}
 
-# If it's been successful until now, save the image 
+# Save the image 
 
-save.image(file = file.path(path_in, "R",'processed_data_after_creating_new_df.RData'))
+save.image(file = file.path(path_in, "R", rdata))
 
 
 ```

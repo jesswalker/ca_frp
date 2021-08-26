@@ -63,7 +63,7 @@ path_data <- file.path(path_in, "data")
 # a known fire perimeter. 
 
 # Get relevant filenames
-  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info.csv")
+  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_setyear.csv")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
   suppressWarnings(files_w_fire_info <- do.call(rbind, lapply(file.path(path_data, filenames_in), read.csv, row.names=NULL)))
@@ -92,7 +92,7 @@ path_data <- file.path(path_in, "data")
 #### Join both files ####
 # ---------------------------------------------------------------- #
 
-joined_file <- files_w_fire_info %>% left_join(files_w_frp_info, by = c("index")) #, "newdate", "latitude", "longitude"))
+joined_file <- files_w_fire_info %>% left_join(select(files_w_frp_info, index, starts_with("class")), by = c("index"))
 
 ```
 

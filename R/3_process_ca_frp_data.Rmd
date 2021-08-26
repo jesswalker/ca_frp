@@ -26,6 +26,7 @@ _Output file_:  processed_data_prior_to_new_df.RData
 #  * Intersected with the BLM fire history file (_intersect_frp_data_with_fire_perimeters.py_) to combine 
 #    * FRP data
 #    * Fire history information  
+#  * FRP is reset in years in which fire_year != MODIS_year
 #  * Joined with EVT information (_2_add_evtclass_to_gee_files.Rmd_)
 
 ```
@@ -74,9 +75,9 @@ rdata <- "processed_data_prior_to_new_df.RData"
 # ---------------------------------------------------------------- #
 #### Select columns ####
 # ---------------------------------------------------------------- #
-  x_orig <- files_all %>% 
-                select(index,  MaxFRP.x, latitude.x, longitude.x, ALARM_DATE,
-                       sample, satellite, newdate.y, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, pixelarea, starts_with('class')) 
+  x_in <- files_all %>% 
+                select(index,  MaxFRP, latitude, longitude, ALARM_DATE,
+                       sample, satellite, newdate, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, pixelarea, starts_with('class')) 
  
 ```
 
@@ -108,15 +109,17 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group')
 # a single point may have burned in multiple fires. The input format is unwieldy; replace with 
 # a simpler sequence of sequential numbers.
 
-  x_orig <- x_orig %>% 
+  x_orig <- x_in %>% 
+            mutate(index2 = as.factor(index)) %>% 
             mutate(index = as.factor(index))
 
   levels(x_orig$index) <- c(seq(1:length(levels(x_orig$index))))
   
 # Rename columns  
-  oldnames = c("index","MaxFRP.x", "newdate.y", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude.x", "longitude.x")
+  oldnames = c("index","MaxFRP", "newdate", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude", "longitude")
   newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon")
-  x_orig <- x_orig %>% rename_at(vars(oldnames), ~ newnames)
+  x_orig <- x_orig %>% 
+            rename_at(vars(oldnames), ~ newnames)
 
 # Incoming MODIS frp is scaled by 10; rescale
   x_orig$frp <- 0.1 * x_orig$frp
@@ -124,8 +127,8 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group')
 # Remove NA-only columns
   x_orig <- Filter(function(y) !all(is.na(y)), x_orig)
 
-  # Remove rows in which frp == NA
-  x_orig <- x_orig[!is.na(x_orig$frp), ]
+  # Remove rows in which frp == NA nooooooooooo...this gets rid of earlier fire info
+#  x_orig <- x_orig[!is.na(x_orig$frp), ]
   
 # Remove rows in which all classes == NA
  # col_start <- which(colnames(x_orig) == "class11")
@@ -133,20 +136,40 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group')
  # x_orig <- x_orig[!apply(x_orig[col_start:col_end], 1, function(x) all(is.na(x))), ]
   
 # Format date columns and remove old ones
-  x_orig$modis_date <- as.Date(x_orig$modis_date, format = "%Y-%m-%d")  #"%Y-%m-%d")
+  x_orig$modis_date <- as.Date(x_orig$modis_date, format = "%m/%d/%Y %H:%M:%S")  #"%Y-%m-%d")
   x_orig$fire_date <- as.Date(x_orig$fire_date, format = "%m/%d/%Y %H:%M:%S")
   x_orig$modis_year <- year(x_orig$modis_date)
+  
+# Promote years in order
+  x_orig <- x_orig %>% 
+    relocate(modis_year, .after = fire_year) %>% 
+    relocate(modis_date, .after = fire_date)
+  
   
 # Ensure point id is a factor
   x_orig$ptid <- factor(x_orig$ptid)
   
-# Remove unneeded columns
-# x_orig <- x_orig %>% select(-c(DiscDate, newdate))
   
-# Remove all rows in which the modis date preceeds the fire date
-   x_orig <- x_orig[which(x_orig$modis_date > x_orig$fire_date), ]
+# Keep only those rows in which the modis date is after or on the fire date
+   x_orig <- x_orig %>% 
+             filter(modis_date >= fire_date) %>% 
+             filter(!duplicated(.))
 
-```
+
+#x_origsub <- x_orig %>% 
+#            select(!starts_with("class"))
+
+# If the fire year != modis year, replace FRP with an NA
+#x_origsub <- x_origsub %>% 
+#            mutate(frp = replace(frp, modis_year != fire_year, NA)) 
+
+#x_origsub <- x_origsub %>% 
+#             filter(!duplicated(.))
+
+#dat <- x_orig %>% group_by(ptid) %>% filter(n() > 1)
+   
+
+``` 
 ###Assemble new dataframe of fires
 
 
@@ -185,6 +208,6 @@ RData file is saved to `r file.path(path_r, rdata)`
 # Save data and environment settings   
 print(paste0("R data file saved to ", file.path(path_r, rdata)))
 #save.image(file = file.path(path_r, rdata))
-save(x_holder, x_noclasses, x_classes, file = file.path(path_r, rdata) )
+save(x_holder, x_orig, x_noclasses, x_classes, evt_classes, file = file.path(path_r, rdata) )
 
 ```

@@ -132,7 +132,7 @@ firesgt20000 <- x_noclasses_ptid_gt20000 %>%
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-all_fires <- rbind(lst_fireslte10000, lst_fireslte20000, lst_firesgt20000)
+all_fires <- rbind(fireslte10000, fireslte20000, firesgt20000)
 
 # Convert from df of lists to just a df
 x_fires_noevt <- data.frame(all_fires)
@@ -152,7 +152,7 @@ x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 # Save the image 
 
 save.image(file = file.path(path_in, "R", rdata))
-save(x_fires_noevt, x_classes, file = file.path(path_in, "R", "test_of_slim_code4_output.Rdata"))
+save(x_fires_noevt, x_classes, evt_classes, file = file.path(path_in, "R", "test_of_slim_code4_output.Rdata")) 
 
 
 ```

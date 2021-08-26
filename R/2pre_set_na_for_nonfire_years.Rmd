@@ -9,7 +9,7 @@ output: html_notebook
 
 ########################################################################### #
 # 
-# 1a_set_frp_values.Rmd
+# 2pre_set_frp_values.Rmd
 #
 # This helper script sets FRP to NA for all fire years that are not the MODIS year.
 
@@ -22,6 +22,20 @@ output: html_notebook
 ```
 
 ```{r, echo=FALSE, message=FALSE}
+
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+
 
 load_libraries(c("dplyr"))
 
@@ -41,12 +55,13 @@ suffix <- "_plus_fire_info"
 #### Open files that have fire info and replace FRPs in non-fire years ####
 # ---------------------------------------------------------------- #
 for (yr in 2014:2020)
-  
 {
-  filename_in <- file.path(path_data, paste0(prefix, i, suffix, ".csv"))
+  yr <- as.integer(yr)
+  filename_in <- file.path(path_data, paste0(prefix, yr, suffix, ".csv"))
   df <- read.csv(filename_in, header = TRUE)
   df_out <- df %>% 
-    mutate(MaxFRP = replace(MaxFRP, YEAR_ != yr, NA))
+    mutate(MaxFRP = replace(MaxFRP, YEAR_ != yr, NA)) %>% 
+    filter(., YEAR_ <= yr)  # if there is information about fires that occur AFTER the target date, delete 
   
   write.csv(df_out, file = file.path(path_data, paste0(prefix, yr, suffix, "_setyear.csv")))
   

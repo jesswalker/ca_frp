@@ -1,0 +1,55 @@
+---
+title:  "2pre_set_na_for_nonfire_years"
+author: "JJWalker"
+date: "2021-08-19"
+output: html_notebook
+---
+
+```{r, echo = F}
+
+########################################################################### #
+# 
+# 1a_set_frp_values.Rmd
+#
+# This helper script sets FRP to NA for all fire years that are not the MODIS year.
+
+# Input: maxFRP_CA_gte4sqkm_yyyy_plus_fire_info.csv
+# 
+# Output: maxFRP_CA_gte4sqkm_yyyy_plus_fire_info_setyear.csv
+# 
+#
+########################################################################### #
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+load_libraries(c("dplyr"))
+
+# Set paths
+path_in <- "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+prefix <- "maxFRP_CA_gte4sqkm_"
+suffix <- "_plus_fire_info"
+
+
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Open files that have fire info and replace FRPs in non-fire years ####
+# ---------------------------------------------------------------- #
+for (yr in 2014:2020)
+  
+{
+  filename_in <- file.path(path_data, paste0(prefix, i, suffix, ".csv"))
+  df <- read.csv(filename_in, header = TRUE)
+  df_out <- df %>% 
+    mutate(MaxFRP = replace(MaxFRP, YEAR_ != yr, NA))
+  
+  write.csv(df_out, file = file.path(path_data, paste0(prefix, yr, suffix, "_setyear.csv")))
+  
+}
+```
+

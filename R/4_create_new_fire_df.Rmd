@@ -35,7 +35,6 @@ load_libraries <- function(libs){
 }
 #  Try/install packages
 load_libraries(c("lubridate", "dplyr") )
-library(dplyr, lubridate)
 
 # Set paths
 path_in = "/home/jovyan/ca_frp"
@@ -57,22 +56,22 @@ load(file.path(path_in, "R",'processed_data_prior_to_new_df.RData'))
 
 # For each ptid:
 # - Get unique years from combined set of fire years and modis years
-#   (both are necessary b/c some modis years are not associated with a BLM fire) 
+#   (both are necessary b/c some modis years are not associated with a CA fire history perimeter) 
 # - Construct a new dataframe with invariant info (lat, long, evt)
 # - Replicate for the number of years 
 
 create_new_fire_df = function(f) {
 
-    # Trim factor levels
+  # Trim factor levels
   f$ptid <- factor(f$ptid)
   
-  # Create list of all unique fire and MODIS years. 
+  # Create list of all unique fire and MODIS years 
   years <- unique(c(f$fire_year, f$modis_year))
   
   # Set up new df with invariant point info for given # of years
   f_new <- f[1, c("ptid", "lat", "lon")] %>% slice(rep(1:n(), each = length(years)))
 
-    # Add fire years
+  # Add fire years
   f_new <- cbind(f_new, fire_year = years)
 
   # Get the frp corresponding to the modis year. Years preceeding modis era get NA
@@ -121,22 +120,22 @@ x_noclasses_ptid_gt20000 <-  subset(x_noclasses, ptid2 > 20000)
 #            group_by(ptid) %>%
 #            do(create_new_fire_df(.))
 
-lst_fireslte10000 <- x_noclasses_ptid_lte10000 %>% 
+fireslte10000 <- x_noclasses_ptid_lte10000 %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-lst_fireslte20000 <- x_noclasses_ptid_lte20000 %>% 
+fireslte20000 <- x_noclasses_ptid_lte20000 %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-lst_firesgt20000 <- x_noclasses_ptid_gt20000 %>% 
+firesgt20000 <- x_noclasses_ptid_gt20000 %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-lst_fires <- rbind(lst_fireslte10000, lst_fireslte20000, lst_firesgt20000)
+all_fires <- rbind(lst_fireslte10000, lst_fireslte20000, lst_firesgt20000)
 
 # Convert from df of lists to just a df
-x_fires_noevt <- data.frame(lst_fires)
+x_fires_noevt <- data.frame(all_fires)
 x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year), ]
 
 # Remove all rows in which MODIS-era fires have an NA FRP
@@ -153,6 +152,7 @@ x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 # Save the image 
 
 save.image(file = file.path(path_in, "R", rdata))
+save(x_fires_noevt, x_classes, file = file.path(path_in, "R", "test_of_slim_code4_output.Rdata"))
 
 
 ```

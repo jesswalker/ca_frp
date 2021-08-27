@@ -82,7 +82,7 @@ path_data <- file.path(path_in, "data")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
   suppressWarnings(files_w_frp_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
-
+  
 ```
 
 
@@ -92,7 +92,7 @@ path_data <- file.path(path_in, "data")
 #### Join both files ####
 # ---------------------------------------------------------------- #
 
-joined_file <- files_w_fire_info %>% left_join(select(files_w_frp_info, index, starts_with("class")), by = c("index"))
+joined_file <- files_w_fire_info %>% left_join(select(files_w_frp_info, MaxFRP, index, sample, satellite, pixelarea, starts_with("class")), by = c("index", "MaxFRP"))
 
 ```
 

@@ -25,23 +25,23 @@
 library(dplyr)
 
 # Set path info
-path.in = "/home/jovyan/ca_frp/data/gee/"
-filenames.in <- list.files(path.in, pattern = "*.csv")
+path_in = "/home/jovyan/ca_frp/data/gee/"
+filenames_in <- list.files(path_in, pattern = "*.csv")
 
 # Process each file
-for (filename.in in filenames.in) {
+for (filename_in in filenames_in) {
   
-  x <- read.csv(file.path(path.in, filename.in), header = T)
-  filename.sub <- substr(basename(filename.in), 1, nchar(basename(filename.in))-4)
-  filename.out <- paste0(filename.sub, "_processed.csv")
-  filename2.out <- paste0(filename.sub, "_processed_slim.csv")
+  x <- read.csv(file.path(path_in, filename_in), header = T)
+  filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in))-4)
+  filename_out <- paste0(filename_sub, "_processed.csv")
+  filename2_out <- paste0(filename_sub, "_processed_slim.csv")
   
   # rename first column for convenience
   colnames(x)[1] <- "index"
   
   # R slaps an "X" in front of numerical columns; switch it to "class"
-  names.sub <- names(x)[which((substring(names(x), 1, 1) == "X"))]
-  names(x)[which((substring(names(x), 1,1) == "X"))] <- paste0("class", substring(names.sub, 2))
+  names_sub <- names(x)[which((substring(names(x), 1, 1) == "X"))]
+  names(x)[which((substring(names(x), 1,1) == "X"))] <- paste0("class", substring(names_sub, 2))
   
   # get rid of dots
   names(x) <- gsub(".", "", names(x), fixed = TRUE)
@@ -85,10 +85,10 @@ for (filename.in in filenames.in) {
   x <- x[-1, ]
   
   # save output
-  #write.csv(x, file = file.path(path.in, filename.out), row.names = FALSE)
+  #write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
   
   # remove EVT classes by dropping all 'class' columns
   x <- x %>% select(-contains('class'))
   
-  #write.csv(x, file = file.path(path.in, filename2.out), row.names = FALSE)
+  #write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
 }

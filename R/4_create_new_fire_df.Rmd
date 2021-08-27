@@ -48,6 +48,33 @@ load(file.path(path_in, "R",'processed_data_prior_to_new_df.RData'))
 
 ```
 
+
+```{r, echo=FALSE, warning=F}
+
+# ---------------------------------------------------------------- #
+#### Set up the new fire df ####
+# ---------------------------------------------------------------- #
+
+# We need a row for each unique fire_year and modis_year.
+# fire_years are derived from the CA fire history database; modis_years are from FRP data.
+# Both are necessary since some modis_years do not have a corresponding fire_year.
+# Each will have an FRP value for each MODIS year; pre-MODIS years get frp = NA.
+
+# Set up df to hold entries for all points
+  x_holder <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),  c('ptid', 'lat', 'long', 'fire_year', 'frp', 'fireid', 'sample',  'satellite'))
+
+# Create df without classes
+  x_noclasses <- x_orig %>% select(-starts_with('class'))
+  
+# Create df of classes info for each pixel. Remove duplicates to get 1 row for each ptid. Include areal sum for each pixel
+  x_classes <- x_orig %>% 
+                select(ptid, starts_with('class')) %>% 
+                distinct(ptid, .keep_all = T) %>% 
+                mutate(evt_sum = rowSums(.[, -1], na.rm = TRUE))
+
+```
+
+
 ```{r, echo=FALSE}
 
 # ---------------------------------------------------------------- #
@@ -142,6 +169,9 @@ x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year
 # dplyr rocks with the anti_join
 frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
 x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
+
+# Remove all points for which frp is only NA
+x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 
 ```
 

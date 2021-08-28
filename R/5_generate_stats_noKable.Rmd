@@ -35,7 +35,7 @@ load_libraries <- function(libs){
   }
 }
 #  Try/install packages
-load_libraries(c("lubridate", "dplyr")) #, "kableExtra", "knitr") )
+load_libraries(c("lubridate", "dplyr") # "kableExtra", "knitr") )
 #devtools::install_github("haozhu233/kableExtra")
 #library(kableExtra)
 
@@ -48,8 +48,14 @@ source(file.path(path_r, "ca_functions.R"))
 
 ```{r}
 
-load(file.path(path_r,'new_fire_df.RData'))
+load(file.path(path_r,'test_of_slim_code4_output.Rdata')) #'new_fire_df.RData'
 
+```
+
+
+```{r}
+# Remove all pts for which frp is ONLY NA. This command duplicated in 3_process
+x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 ```
 
 ```{r, echo = FALSE}
@@ -105,21 +111,12 @@ x_classes$ptid <- as.numeric(x_classes$ptid)
 x_fires_evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
 
 ```
-The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. Example of a point with multiple associated fires (without class info):
-
-`r x_noclasses %>%
-          filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4, ][[1]][1]) %>% 
-          arrange(fire_year) %>% 
-          kable() %>%
-          kable_styling()`
-
-
-After processing, the same point id has this format:
+The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. After processing, an example point id has this format:
 
 `r x_fires_noevt %>%
-  filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4,][[1]][1]) %>% 
-  kable() %>%
-  kable_styling()`
+  filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4,][[1]][1])# %>% 
+#  kable() %>%
+#  kable_styling()`
   
 Fire year is assumed to be MODIS year for all fires 2002 - 2016. Other notes:
 

@@ -179,7 +179,6 @@ RData file is saved to `r file.path(path_r, rdata)`
 
 # Save data and environment settings   
 print(paste0("R data file saved to ", file.path(path_r, rdata)))
-#save.image(file = file.path(path_r, rdata))
 save(x_orig, evt_classes, file = file.path(path_r, rdata) )
 
 ```

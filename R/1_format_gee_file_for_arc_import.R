@@ -14,12 +14,13 @@
 # Input: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy.csv
 # Output: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy_processed.csv
 #
-# To complete the next step (intersection of GEE files with vector fire data),
+# To complete the next step--intersecting GEE files with vector fire data via
+# the python script intersect_frp_data_with_fire_perimeters.py),
 # outputting files with all 100+ EVT classes removed was necessary:
 #
 # Output2: maxFRP_CA_gte4sqkm_yyyy_processed_slim.csv 
 #
-#
+# 
 ########################################################################### #
 
 library(dplyr)
@@ -32,7 +33,7 @@ filenames_in <- list.files(path_in, pattern = "*.csv")
 for (filename_in in filenames_in) {
   
   x <- read.csv(file.path(path_in, filename_in), header = T)
-  filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in))-4)
+  filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in)) - 4)
   filename_out <- paste0(filename_sub, "_processed.csv")
   filename2_out <- paste0(filename_sub, "_processed_slim.csv")
   
@@ -41,7 +42,7 @@ for (filename_in in filenames_in) {
   
   # R slaps an "X" in front of numerical columns; switch it to "class"
   names_sub <- names(x)[which((substring(names(x), 1, 1) == "X"))]
-  names(x)[which((substring(names(x), 1,1) == "X"))] <- paste0("class", substring(names_sub, 2))
+  names(x)[which((substring(names(x), 1, 1) == "X"))] <- paste0("class", substring(names_sub, 2))
   
   # get rid of dots
   names(x) <- gsub(".", "", names(x), fixed = TRUE)
@@ -92,3 +93,11 @@ for (filename_in in filenames_in) {
   
   #write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
 }
+
+# Add single file version
+
+filenames_in <- list.files(path_in, pattern = "*slim.csv")
+mergedData <- 
+  do.call(rbind,
+          lapply(file.path(path_in, filenames_in), read.csv))
+

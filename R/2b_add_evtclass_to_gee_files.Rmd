@@ -49,6 +49,10 @@ load_libraries(c("dplyr"))
 path_in = "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
 
+startyr <- 2002
+endyr <- 2021
+
+file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtClasses.csv")
 
 ```
 
@@ -63,7 +67,7 @@ path_data <- file.path(path_in, "data")
 # a known fire perimeter. 
 
 # Get relevant filenames
-  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_setyear.csv")
+  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_slim_setyear.csv")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
   suppressWarnings(files_w_fire_info <- do.call(rbind, lapply(file.path(path_data, filenames_in), read.csv, row.names=NULL)))
@@ -103,7 +107,7 @@ joined_file <- files_w_fire_info %>% left_join(select(files_w_frp_info, MaxFRP, 
 #### Join both files ####
 # ---------------------------------------------------------------- #
 
-write.csv(joined_file, file.path(path_data, "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"), row.names = FALSE)
+write.csv(joined_file, file.path(path_data, file_out), row.names = FALSE)
 
 
 ```

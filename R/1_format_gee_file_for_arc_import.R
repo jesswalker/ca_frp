@@ -86,18 +86,18 @@ for (filename_in in filenames_in) {
   x <- x[-1, ]
   
   # save output
-  #write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
   
   # remove EVT classes by dropping all 'class' columns
   x <- x %>% select(-contains('class'))
   
-  #write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
 }
 
 # Add single file version
 
-filenames_in <- list.files(path_in, pattern = "*slim.csv")
-mergedData <- 
-  do.call(rbind,
-          lapply(file.path(path_in, filenames_in), read.csv))
+# filenames_in <- list.files(path_in, pattern = "*slim.csv")
+# mergedData <- 
+#  do.call(rbind,
+#          lapply(file.path(path_in, filenames_in), read.csv))
 

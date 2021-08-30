@@ -127,7 +127,12 @@ x_noclasses$ptid2 <- as.numeric(as.character(x_noclasses$ptid))
 
 x_noclasses_ptid_lte10000 <- subset(x_noclasses, ptid2 <= 10000)
 x_noclasses_ptid_lte20000 <- subset(x_noclasses, ptid2 > 10000 & ptid2 <= 20000)
-x_noclasses_ptid_gt20000 <-  subset(x_noclasses, ptid2 > 20000)
+x_noclasses_ptid_lte30000 <-  subset(x_noclasses, ptid2 > 20000 & ptid2 <= 30000)
+x_noclasses_ptid_lte40000 <-  subset(x_noclasses, ptid2 > 30000 & ptid2 <= 40000)
+x_noclasses_ptid_lte50000 <-  subset(x_noclasses, ptid2 > 40000 & ptid2 <= 50000)
+x_noclasses_ptid_lte60000 <-  subset(x_noclasses, ptid2 > 50000 & ptid2 <= 60000)
+x_noclasses_ptid_lte70000 <-  subset(x_noclasses, ptid2 <= 70000)
+
 
 ```
 
@@ -147,6 +152,8 @@ x_noclasses_ptid_gt20000 <-  subset(x_noclasses, ptid2 > 20000)
 #            group_by(ptid) %>%
 #            do(create_new_fire_df(.))
 
+# This work-around is kludgy but hey...it works. Fight the urge to make it more elegant. 
+
 fireslte10000 <- x_noclasses_ptid_lte10000 %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
@@ -155,11 +162,27 @@ fireslte20000 <- x_noclasses_ptid_lte20000 %>%
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-firesgt20000 <- x_noclasses_ptid_gt20000 %>% 
+fireslte30000 <- x_noclasses_ptid_lte30000 %>% 
             group_by(ptid) %>%
             do(create_new_fire_df(.))
 
-all_fires <- rbind(fireslte10000, fireslte20000, firesgt20000)
+fireslte40000 <- x_noclasses_ptid_lte40000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte50000 <- x_noclasses_ptid_lte50000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte60000 <- x_noclasses_ptid_lte60000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte70000 <- x_noclasses_ptid_lte70000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+all_fires <- rbind(fireslte10000, fireslte20000, fireslte30000, fireslte40000, fireslte50000, fireslte60000, fireslte70000)
 
 # Convert from df of lists to just a df
 x_fires_noevt <- data.frame(all_fires)

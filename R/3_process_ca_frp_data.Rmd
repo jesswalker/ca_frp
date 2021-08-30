@@ -15,7 +15,7 @@ output:
 
 This script inputs the joined FRP/EVT datasets produced in script #2 and outputs R data files for further processing.  
 
-_Input files_:  maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv  
+_Input files_:  maxFRP_CA_gte4sqkm_<yyyy>to<yyyy>_fireInfo_evtClasses.csv  
 
 _Output file_:  processed_data_prior_to_new_df.RData
 
@@ -49,10 +49,14 @@ load_libraries <- function(libs){
 load_libraries(c("lubridate", "dplyr") )
 
 # Set paths
+startyr <- 2002
+endyr <- 2021
+
 path_in = "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
 path_r <- file.path(path_in, "R")
-data_in <- "maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv"
+
+data_in <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtClasses.csv")
 rdata <- "processed_data_prior_to_new_df.RData"
 
 ```
@@ -77,7 +81,7 @@ rdata <- "processed_data_prior_to_new_df.RData"
 # ---------------------------------------------------------------- #
   x_in <- files_all %>% 
                 select(index,  MaxFRP, latitude, longitude, ALARM_DATE,
-                       sample, satellite, newdate, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, pixelarea, starts_with('class')) 
+                       sample, satellite, newdate, pixelarea.x, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, starts_with('class')) 
  
 ```
 

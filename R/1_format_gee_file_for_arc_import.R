@@ -94,10 +94,4 @@ for (filename_in in filenames_in) {
   write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
 }
 
-# Add single file version
-
-# filenames_in <- list.files(path_in, pattern = "*slim.csv")
-# mergedData <- 
-#  do.call(rbind,
-#          lapply(file.path(path_in, filenames_in), read.csv))
 

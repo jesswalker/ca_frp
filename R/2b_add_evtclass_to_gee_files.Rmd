@@ -67,7 +67,7 @@ file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtCl
 # a known fire perimeter. 
 
 # Get relevant filenames
-  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_slim_setyear.csv")
+  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_setyear.csv")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
   suppressWarnings(files_w_fire_info <- do.call(rbind, lapply(file.path(path_data, filenames_in), read.csv, row.names=NULL)))
@@ -85,7 +85,7 @@ file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtCl
   filenames_frp <- list.files(file.path(path_data, "gee"), pattern = "*_processed.csv")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
-  suppressWarnings(files_w_frp_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
+  suppressWarnings(files_w_evt_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
   
 ```
 
@@ -96,7 +96,7 @@ file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtCl
 #### Join both files ####
 # ---------------------------------------------------------------- #
 
-joined_file <- files_w_fire_info %>% left_join(select(files_w_frp_info, MaxFRP, index, sample, satellite, pixelarea, starts_with("class")), by = c("index", "MaxFRP"))
+joined_file <- files_w_fire_info %>% left_join(select(files_w_evt_info, MaxFRP, index, sample, satellite, pixelarea, starts_with("class")), by = c("index", "MaxFRP", "sample", "satellite", "pixelarea"))
 
 ```
 

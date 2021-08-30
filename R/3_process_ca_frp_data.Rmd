@@ -91,15 +91,20 @@ rdata <- "processed_data_prior_to_new_df.RData"
 # ---------------------------------------------------------------- #
 #### Define EVT columns ####
 # ---------------------------------------------------------------- #
-# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_classes_found_in_ca.csv"
+# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_2014_classes_ca.csv"
 
-data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID
+# data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID for 2014 EVT classes
+
+data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
+
 evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
 
 
 # Change column names to conform to existing 
-names(evt_classes) <- c('evt_number', 'description', 'evt_group')
- 
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
+names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+
+
 ```
 
 

@@ -1,5 +1,5 @@
 ---
-title:  "2pre_set_na_for_nonfire_years"
+title:  "2a_set_na_for_nonfire_years"
 author: "JJWalker"
 date: "2021-08-19"
 output: html_notebook
@@ -9,7 +9,7 @@ output: html_notebook
 
 ########################################################################### #
 # 
-# 2pre_set_frp_values.Rmd
+# 2a_set_frp_values.Rmd
 #
 # This helper script sets FRP to NA for all fire years that are not the MODIS year.
 # It is run after merging the FRP data with the fire history information via the 
@@ -45,7 +45,7 @@ load_libraries(c("dplyr"))
 path_in <- "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
 prefix <- "maxFRP_CA_gte4sqkm_"
-suffix <- "_plus_fire_info"
+suffix <- "_plus_fire_info_slim"
 
 
 ```
@@ -56,7 +56,11 @@ suffix <- "_plus_fire_info"
 # ---------------------------------------------------------------- #
 #### Open files that have fire info and replace FRPs in non-fire years ####
 # ---------------------------------------------------------------- #
-for (yr in 2014:2020)
+
+startyr <-2002
+endyr <-2021
+
+for (yr in startyr:endyr)
 {
   yr <- as.integer(yr)
   filename_in <- file.path(path_data, paste0(prefix, yr, suffix, ".csv"))

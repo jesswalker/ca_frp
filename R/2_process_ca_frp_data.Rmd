@@ -1,0 +1,135 @@
+---
+title:  "2_process consolidated file"
+author: "JJWalker"
+date: "2021-08-19"
+output: html_notebook
+---
+
+```{r, echo = F}
+
+########################################################################### #
+# 
+# 2c_process_consolidated_file
+#
+# This helper script sets FRP to NA for all fire years that are not the MODIS/fire year.
+# It is run after merging the FRP data with the fire history information via the 
+# python script.
+#
+# Input: consolidated_plus_fire_info.csv
+# 
+# Output: 
+# 
+#
+########################################################################### #
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+
+
+load_libraries(c("dplyr"))
+
+# Set paths
+path_in <- "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+data_in <- "consolidated_plus_fire_info.csv"
+
+
+```
+
+
+```{r, echo=FALSE, message=FALSE}
+# ---------------------------------------------------------------- #
+#### Load in single file of GEE points that have associated fire data ####
+# ---------------------------------------------------------------- #
+
+# Get the relevant filename
+  files_all <- read.csv(file.path(path_data, data_in), header = T)
+
+```
+
+
+
+```{r}
+# Point ID ('index') is unique to each point, though the same ID can occur in multiple rows since
+# a single point may have burned in multiple fires. The input format is unwieldy; replace with 
+# a simpler sequence of sequential numbers.
+
+ df1 <- files_all %>% 
+            mutate(index2 = as.factor(index)) %>% 
+            mutate(index = as.factor(index))
+
+  levels(df1$index) <- c(seq(1:length(levels(df1$index))))
+  
+# Rename columns  
+  oldnames = c("index","MaxFRP", "newdate", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude", "longitude", "pixelarea")
+  newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon", "pixelarea")
+  df1 <-df1 %>% 
+            rename_at(vars(oldnames), ~ newnames)
+
+# Ensure point id is a factor
+ df1$ptid <- factor(x_1$ptid)
+
+# Format date columns and remove old ones
+  df1$modis_date <- as.Date(df1$modis_date, format = "%m/%d/%Y %H:%M:%S")  #"%Y-%m-%d")
+  df1$fire_date <- as.Date(df1$fire_date, format = "%m/%d/%Y %H:%M:%S")
+  df1$modis_year <- year(df1$modis_date)
+
+# Incoming MODIS frp is scaled by 10; rescale
+ df1$frp <- 0.1 *df1$frp
+  
+# Remove NA-only columns
+ df1 <- Filter(function(y) !all(is.na(y)),df1)
+  
+# Convert FRP in all non-fire/Modis years to NA
+  df2 <- df1 %>% 
+    mutate(frp = replace(frp, fire_year != modis_year, NA),
+           satellite = replace(satellite, fire_year != modis_year, NA),
+           sample = replace(sample, fire_year != modis_year, NA)) %>% 
+    filter(., fire_year <= modis_year)  # if there is information about fires that occur AFTER the target date, delete 
+  
+# Promote years in order
+  df2 <- df2 %>% 
+    relocate(modis_year, .after = fire_year) %>% 
+    relocate(modis_date, .after = fire_date)
+
+  
+# Format date columns and remove old ones
+ df2$modis_date <- as.Date(df2$modis_date, format = "%m/%d/%Y %H:%M:%S")  #"%Y-%m-%d")
+ df2$fire_date <- as.Date(df2$fire_date, format = "%m/%d/%Y %H:%M:%S")
+ df2$modis_year <- year(df2$modis_date)
+  
+# Promote years in order
+ df2 <-df2 %>% 
+    relocate(modis_year, .after = fire_year) %>% 
+    relocate(modis_date, .after = fire_date)
+  
+
+  
+ 
+# Each MODIS pt is associated with all fires at that location. Sort in descending MODIS-year, then take only the distinct 
+  # entries
+ 
+ df1 %>% group_by(ptid) %>% 
+      arrange(desc(modis_year)) %>% 
+      distinct(fireid, fire_year , .keep_all = T)
+  
+# Keep only those rows in which the modis date is after or on the fire date
+   x_2 <-df1 %>% 
+             filter(modis_date >= fire_date) %>% 
+             filter(!duplicated(.))
+
+
+```

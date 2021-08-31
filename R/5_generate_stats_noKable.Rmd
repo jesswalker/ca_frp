@@ -35,7 +35,7 @@ load_libraries <- function(libs){
   }
 }
 #  Try/install packages
-load_libraries(c("lubridate", "dplyr") # "kableExtra", "knitr") )
+load_libraries(c("lubridate", "dplyr")) # "kableExtra", "knitr") )
 #devtools::install_github("haozhu233/kableExtra")
 #library(kableExtra)
 
@@ -48,7 +48,33 @@ source(file.path(path_r, "ca_functions.R"))
 
 ```{r}
 
-load(file.path(path_r,'test_of_slim_code4_output.Rdata')) #'new_fire_df.RData'
+load(file.path(path_r,'code4_output.Rdata')) #'new_fire_df.RData'
+
+```
+
+
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Define EVT columns ####
+# ---------------------------------------------------------------- #
+# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_2014_classes_ca.csv"
+
+# data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID for 2014 EVT classes
+
+data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
+
+evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
+
+
+# Change column names to conform to existing 
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
+names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+
+
+```
 
 ```
 
@@ -147,10 +173,13 @@ After EVT classes are added back to the dataframe, the process is to:
   
   # ...calculate the proportion of pixels that class represented
   x_fires_evt$max_evt_prop <- x_fires_evt$max_evt_area/x_fires_evt$evt_sum
+  
   # Remove rows in which max_class == NA; this means none of the classes had a majority
   x_fires_evt <- x_fires_evt[!is.na(x_fires_evt$max_evt_cat), ]
+  
   # Convert to factor
   x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
+  
   # Merge with file of EVT classes to associate a name with each class
   x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
   

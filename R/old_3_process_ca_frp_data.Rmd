@@ -80,8 +80,8 @@ rdata <- "processed_data_prior_to_new_df.RData"
 #### Select columns ####
 # ---------------------------------------------------------------- #
   x_in <- files_all %>% 
-                select(index,  MaxFRP, latitude, longitude, ALARM_DATE,
-                       sample, satellite, newdate, pixelarea.x, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, starts_with('class')) 
+                select(index,  MaxFRP.x, latitude, longitude, ALARM_DATE,
+                       sample, satellite, newdate, pixelarea, YEAR_, FID_firep2, FIRE_NAME, GIS_ACRES, starts_with('class')) 
  
 ```
 
@@ -125,8 +125,8 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 
   levels(x_orig$index) <- c(seq(1:length(levels(x_orig$index))))
   
 # Rename columns  
-  oldnames = c("index","MaxFRP", "newdate", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude", "longitude")
-  newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon")
+  oldnames = c("index","MaxFRP.x", "newdate", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude", "longitude", "pixelarea")
+  newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon", "pixelarea")
   x_orig <- x_orig %>% 
             rename_at(vars(oldnames), ~ newnames)
 
@@ -135,9 +135,6 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 
   
 # Remove NA-only columns
   x_orig <- Filter(function(y) !all(is.na(y)), x_orig)
-
-  # Remove rows in which frp == NA nooooooooooo...this gets rid of earlier fire info
-#  x_orig <- x_orig[!is.na(x_orig$frp), ]
   
 # Remove rows in which all classes == NA
  # col_start <- which(colnames(x_orig) == "class11")

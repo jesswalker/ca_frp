@@ -96,7 +96,9 @@ file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtCl
 #### Join both files ####
 # ---------------------------------------------------------------- #
 
-joined_file <- files_w_fire_info %>% left_join(select(files_w_evt_info, MaxFRP, index, sample, satellite, pixelarea, starts_with("class")), by = c("index", "MaxFRP", "sample", "satellite", "pixelarea"))
+joined_file <- files_w_fire_info %>% left_join(select(files_w_evt_info, index, MaxFRP, sample, satellite, pixelarea, starts_with("class")), by = c("index", "pixelarea"))
+
+# Why not and the other satellite metrics? B/c they are set to NA for all years in which the MODIS year != fire year, so it will not be equal between files. 
 
 ```
 

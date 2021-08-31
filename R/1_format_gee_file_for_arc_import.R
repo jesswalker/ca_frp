@@ -24,14 +24,15 @@
 library(dplyr)
 
 # Set path info
-path_in = "/home/jovyan/ca_frp/data"
+path_in = "/home/jovyan/ca_frp"
+path_data = file.path(path_in, "data")
 filenames_in <- list.files(path_in, pattern = "*.csv")
 filename_out_slim_all <- "maxFRP_CA_gte4sqkm_2001to2020_processed_slim.csv"
 
 # Process each file
 for (filename_in in filenames_in) {
   
-  x <- read.csv(file.path(path_in, "gee", filename_in), header = T)
+  x <- read.csv(file.path(path_data, "gee", filename_in), header = T)
   filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in)) - 4)
   filename_out <- paste0(filename_sub, "_processed.csv")
   filename_out_slim <- paste0(filename_sub, "_processed_slim.csv")
@@ -85,12 +86,12 @@ for (filename_in in filenames_in) {
   x <- x[-1, ]
   
   # save output
-  write.csv(x, file = file.path(path_in, "gee", filename_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_data, "gee", filename_out), row.names = FALSE)
   
   # Create "slim" file by dropping all EVT columns
   x <- x %>% select(-contains('class'))
   
-  write.csv(x, file = file.path(path_in, "gee", filename_out_slim), row.names = FALSE)
+  write.csv(x, file = file.path(path_data, "gee", filename_out_slim), row.names = FALSE)
 }
 
 # Merge all "slim" files into a single one that can be processed in Arc
@@ -98,8 +99,8 @@ for (filename_in in filenames_in) {
 setwd(path_in)
 mergedData <- 
   do.call(rbind,
-          lapply(list.files(file.path(path_in, "gee"), pattern = "*slim.csv"), read.csv))
+          lapply(list.files(file.path(path_data, "gee"), pattern = "*slim.csv"), read.csv))
 
-write.csv(mergedData, file = file.path(path_in, filename_out_slim_all), row.names = FALSE)
+write.csv(mergedData, file = file.path(path_data, filename_out_slim_all), row.names = FALSE)
 
 

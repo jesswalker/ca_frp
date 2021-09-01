@@ -15,9 +15,9 @@ output:
 
 This script generates stats and plots based on previously processed data.  
 
-_Input files_:  new_fire_df.RData
+_Input files_:  data_from_script3.RData
 
-_Output file_:  
+_Output file_:  data_from_script4.RData
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -141,19 +141,25 @@ After EVT classes are added back to the dataframe, the process is to:
 # ---------------------------------------------------------------- #
 #### Process EVT classes ####
 # ---------------------------------------------------------------- #
-  
+ 
   # Record the EVT class that had the greatest area in each 1-km MODIS pixel
   x_fires_evt$max_evt_cat <- apply(x_fires_evt, 1, function(y) names(y[grepl("class", names(y))])[which.max(y[grepl("class", names(y))])[1]])
+
+  # trim off "class"
+  x_fires_evt$max_evt_cat <- gsub('class', '', x_fires_evt$max_evt_cat)
   
   # ...record the area that class represented
   x_fires_evt$max_evt_area <- apply(x_fires_evt[grepl("class", names(x_fires_evt))], 1, max, na.rm = TRUE)
   
   # ...calculate the proportion of pixels that class represented
   x_fires_evt$max_evt_prop <- x_fires_evt$max_evt_area/x_fires_evt$evt_sum
+  
   # Remove rows in which max_class == NA; this means none of the classes had a majority
   x_fires_evt <- x_fires_evt[!is.na(x_fires_evt$max_evt_cat), ]
+  
   # Convert to factor
   x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
+  
   # Merge with file of EVT classes to associate a name with each class
   x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
   

@@ -1,36 +1,34 @@
 ---
-title:  "2_process_consolidated_ca_frp_data"
+title:  "2_process_ca_frp_data"
 author: "JJWalker"
 date: "2021-08-19"
-output: html_notebook
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
 ---
 
-```{r, echo = F}
+####_2_process_ca_frp_data.Rmd_
 
-########################################################################### #
-# 
-# 2c_process_consolidated_ca_frp_data
-#
-# This helper script is run after merging the FRP data with the fire history information via the 
-# python script. It uses the consolidated file of all data. 
-# Workflow:  
-#  -  Standardize column names and point ID
-#  -  Rescale FRP data
-#  -  Convert satellite info -> NA if fire year != MODIS year 
-#  -  Delete point if MODIS year preceeds fire year
-#  -  Remove duplicate fire history info at each point
-#  -  Merge with original datasets that have EVT info but not fire history
-#
-# Input: maxFRP_CA_gte4sqkm_yyyytoyyyy_processed_slim_plus_fire_info.csv
-# 
-# Output: data_from_script2.Rdata
-# 
-#
-########################################################################### #
-```
+This script uses the consolidated file output from "intersect_frp_data_with_fire_perimeters.py", 
+which tags MODIS point with associated fire history information. 
 
-```{r, echo=FALSE, message=FALSE}
+Workflow:  
+   -  Standardize column names and point ID  
+   -  Rescale FRP data  
+   -  Convert satellite info -> NA if fire year != MODIS year  
+   -  Delete point if MODIS year preceeds fire year  
+   -  Remove duplicate fire history info at each point  
+   -  Merge with original datasets that have EVT info but not fire history  
 
+_Input file_:  maxFRP_CA_gte4sqkm_yyyytoyyyy_processed_slim_plus_fire_info.csv
+
+_Output file_:  data_from_script2.Rdata
+
+
+```{r, echo = FALSE, message = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Set up directories and filenames ####
@@ -44,20 +42,18 @@ load_libraries <- function(libs){
   }
 }
 
-
 load_libraries(c("dplyr"))
 
-# Set paths
+# Set paths and files
 path_in <- "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
 data_in <- 'maxFRP_CA_gte4sqkm_2001to2020_processed_slim_plus_fire_info.csv'
 data_out <- "data_from_script2.RData"
 
-
 ```
 
 
-```{r, echo=FALSE, message=FALSE}
+```{r, echo = FALSE, message = FALSE}
 # ---------------------------------------------------------------- #
 #### Load in file of MODIS points that have associated fire data ####
 # ---------------------------------------------------------------- #
@@ -89,7 +85,7 @@ data_out <- "data_from_script2.RData"
             rename_at(vars(all_of(oldnames)), ~ newnames)
 
 # Ensure point id is a factor
-  df_fire1$ptid <- factor(x_1$ptid)
+  df_fire1$ptid <- factor(df_fire1$ptid)
 
 # Format date columns and remove old ones
   df_fire1$modis_date <- as.Date(df_fire1$modis_date, format = "%m/%d/%Y %H:%M:%S") 
@@ -97,10 +93,10 @@ data_out <- "data_from_script2.RData"
   df_fire1$modis_year <- year(df_fire1$modis_date)
 
 # Incoming MODIS frp is scaled by 10; rescale
- df_fire1$frp <- 0.1 * df_fire1$frp
+  df_fire1$frp <- 0.1 * df_fire1$frp
   
 # Remove NA-only columns
- df_fire1 <- Filter(function(y) !all(is.na(y)),df_fire1)
+  df_fire1 <- Filter(function(y) !all(is.na(y)), df_fire1)
   
 # Convert satellite info -> NA if fire year != MODIS year. Delete point if MODIS year preceeds fire year.
   df_fire2 <- df_fire1 %>% 
@@ -115,53 +111,56 @@ data_out <- "data_from_script2.RData"
     relocate(modis_date, .after = fire_date)
 
 # Since each MODIS reading is associated with all fires at that location, multiple fire histories will exist at points
-# with multiple burns. Remove duplicates by sorting all point-grouped entries by descending MODIS-year, then take 
-# distinct entries
+# with > 1 burn. Remove duplicates by taking distinct entries associated with each point.
  
- df_fire3 <- df_fire2 %>% group_by(ptid) %>% 
+  df_fire3 <- df_fire2 %>% group_by(ptid) %>% 
       arrange(desc(modis_year)) %>% 
       distinct(fireid, fire_year, .keep_all = T)
   
-
 ```
 
 
-```{r, echo = F}
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
 
 # ---------------------------------------------------------------- #
-#### Merge files that have EVT class info but not fire history ####
+#### Combine files that have EVT class info but no fire history ####
 # ---------------------------------------------------------------- #
 
 # Get relevant filenames
   filenames_evt <- list.files(file.path(path_data, "gee"), pattern = "*_processed.csv")
 
 # Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
-  suppressWarnings(files_w_evt_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
+  suppressWarnings(files_w_evt_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_evt), read.csv, row.names=NULL)))
   
-# Only 1 entry per point ID is necessary for EVT classes breakdown
-  files_w_evt_info <- files_w_evt_info %>% distinct(index, .keep_all = TRUE)
-  
+# Remove NA-only columns
+  files_w_evt_info <- Filter(function(y) !all(is.na(y)), files_w_evt_info)
+
+# Remove duplicates; set class types to numeric; remove any rows in which class is only NA
+  files_w_evt_info <- files_w_evt_info %>% 
+      distinct(index, .keep_all = TRUE) %>% 
+      mutate(across(starts_with("class"), as.numeric)) %>%  
+      filter(across(starts_with("class"), all_vars(!is.na(.))))
   
 ```
 
 
-```{r, echo = FALSE}
+```{r, echo = FALSE, message = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Join fire history file and EVT file ####
 # ---------------------------------------------------------------- #
 
 # Take index and all class columns from EVT file
-joined_file <- df_fire3 %>% left_join(select(files_w_evt_info, index, starts_with("class")), by = c("index_old" = "index"))
+  df_evt_and_fire <- df_fire3 %>% left_join(select(files_w_evt_info, index, starts_with("class")), by = c("index_old" = "index"))
 
 ```
 
 
-```{r, echo=FALSE}
+```{r, echo = FALSE, message = FALSE}
 
 # Save data and environment settings   
-print(paste0("R data file saved to ", file.path(path_data, data_out)))
-save(joined_file, file = file.path(path_data, data_out) )
+  print(paste0("R data file saved to ", file.path(path_data, data_out)))
+  save(df_evt_and_fire, file = file.path(path_data, data_out))
 
 ```
 

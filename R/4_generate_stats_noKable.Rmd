@@ -176,6 +176,9 @@ After EVT classes are added back to the dataframe, the process is to:
   # Convert to factor
   x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
   
+  # Trim "class" prefix off classes
+  x_fires_evt$max_evt_cat <- gsub('class', '', x_fires_evt$max_evt_cat)
+  
   # Merge with file of EVT classes to associate a name with each class
   x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
   
@@ -205,12 +208,12 @@ After EVT classes are added back to the dataframe, the process is to:
 #### Calculate summary stats ####
 # ---------------------------------------------------------------- #
 # FRP by burn count (data)
-x.frp.summary <- x_fires_evt %>%
+x_frp_summary <- x_fires_evt %>%
                  group_by(burn_num) %>%
                  summarize(meanFRP = mean(frp, na.rm = T),
                            medFRP = median(frp, na.rm = T),
                            n = length(burn_num))
-# > x.frp.summary
+# > x_frp_summary
 # # A tibble: 8 x 4
 #   burn_num meanFRP medFRP     n
 #   <fct>      <dbl>  <dbl> <int>
@@ -227,7 +230,7 @@ x.frp.summary <- x_fires_evt %>%
 
 ####Overall FRP summary
 
-`r x.frp.summary %>%
+`r x_frp_summary %>%
       kable(digits = 1) %>%
       kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)`
 

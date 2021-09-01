@@ -11,13 +11,14 @@ output:
 ---
 
 
-####_5_generate_stats_and_plots.Rmd_
+####_5_generate_stats_noKable.Rmd_
 
-This script generates stats based on previously processed data.  
+This script generates stats based on previously processed data. Given the difficulty in  
+loading kableExtra on Pangeo, that library is not used.
 
-_Input files_:  new_fire_df.RData
+_Input files_:  data_from_script3.RData
 
-_Output file_:  
+_Output file_:  data_from_script4.RData
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -39,23 +40,23 @@ load_libraries(c("lubridate", "dplyr")) # "kableExtra", "knitr") )
 #devtools::install_github("haozhu233/kableExtra")
 #library(kableExtra)
 
-# Set paths
-path_in = "/home/jovyan/ca_frp"
+# Set paths and files
+path_in <-  "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
+data_in <- "data_from_script3.RData"
 path_r <- file.path(path_in, 'R')
 source(file.path(path_r, "ca_functions.R"))
-```
-
-```{r}
-
-load(file.path(path_r,'code4_output.Rdata')) #'new_fire_df.RData'
 
 ```
 
+```{r, echo = FALSE}
+
+load(file.path(path_data, data_in))
+
+```
 
 
-
-```{r, echo = F}
+```{r, echo = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Define EVT columns ####
@@ -76,15 +77,9 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 
 
 ```
 
-```
-
-
-```{r}
-# Remove all pts for which frp is ONLY NA. This command duplicated in 3_process
-x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
-```
 
 ```{r, echo = FALSE}
+
 # ---------------------------------------------------------------- #
 #### Function - Calculate burn number ####
 # ---------------------------------------------------------------- #
@@ -100,6 +95,7 @@ x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
     df$year_int <- ave(df$fire_year, factor(df$ptid), FUN=function(t) c(0, diff(t))) # get years between fires
   return(df)
   }
+
 ```
 
 
@@ -159,7 +155,7 @@ After EVT classes are added back to the dataframe, the process is to:
 2. Calculate area of that EVT class in each pixel
 3. Remove pixels in which none of the classes had a majority
 
-```{r, echo = FALSE, warning = F}
+```{r, echo = FALSE, warning = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Process EVT classes ####

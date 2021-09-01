@@ -1,0 +1,167 @@
+---
+title:  "2_process_consolidated_ca_frp_data"
+author: "JJWalker"
+date: "2021-08-19"
+output: html_notebook
+---
+
+```{r, echo = F}
+
+########################################################################### #
+# 
+# 2c_process_consolidated_ca_frp_data
+#
+# This helper script is run after merging the FRP data with the fire history information via the 
+# python script. It uses the consolidated file of all data. 
+# Workflow:  
+#  -  Standardize column names and point ID
+#  -  Rescale FRP data
+#  -  Convert satellite info -> NA if fire year != MODIS year 
+#  -  Delete point if MODIS year preceeds fire year
+#  -  Remove duplicate fire history info at each point
+#  -  Merge with original datasets that have EVT info but not fire history
+#
+# Input: maxFRP_CA_gte4sqkm_yyyytoyyyy_processed_slim_plus_fire_info.csv
+# 
+# Output: data_from_script2.Rdata
+# 
+#
+########################################################################### #
+```
+
+```{r, echo=FALSE, message=FALSE}
+
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+
+
+load_libraries(c("dplyr"))
+
+# Set paths
+path_in <- "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+data_in <- 'maxFRP_CA_gte4sqkm_2001to2020_processed_slim_plus_fire_info.csv'
+data_out <- "data_from_script2.RData"
+
+
+```
+
+
+```{r, echo=FALSE, message=FALSE}
+# ---------------------------------------------------------------- #
+#### Load in file of MODIS points that have associated fire data ####
+# ---------------------------------------------------------------- #
+
+# Get the relevant filename
+  df_fire <- read.csv(file.path(path_data, data_in), header = T)
+
+```
+
+
+
+```{r, echo = FALSE, messsage = FALSE}
+
+# Point ID ('index') is unique to each point, though the same ID can occur in multiple rows since
+# a single point may have burned in multiple fires. The input format is unwieldy; replace with 
+# a simpler sequence of sequential numbers.
+
+ df_fire1 <- df_fire %>% 
+            mutate(index_old = as.factor(index)) %>% 
+            mutate(index = as.factor(index))
+
+  levels(df_fire1$index) <- c(seq(1:length(levels(df_fire1$index))))
+  
+# Rename columns  
+  oldnames = c("index", "MaxFRP", "newdate", "ALARM_DATE", "YEAR_", "FID_firep2", "FIRE_NAME", "GIS_ACRES", "latitude", "longitude", "pixelarea")
+  newnames = c("ptid", "frp", "modis_date", "fire_date", "fire_year", "fireid", "fire_name", "fire_ac", "lat", "lon", "pixelarea")
+  
+  df_fire1 <-df_fire1 %>% 
+            rename_at(vars(all_of(oldnames)), ~ newnames)
+
+# Ensure point id is a factor
+  df_fire1$ptid <- factor(x_1$ptid)
+
+# Format date columns and remove old ones
+  df_fire1$modis_date <- as.Date(df_fire1$modis_date, format = "%m/%d/%Y %H:%M:%S") 
+  df_fire1$fire_date <- as.Date(df_fire1$fire_date, format = "%m/%d/%Y %H:%M:%S")
+  df_fire1$modis_year <- year(df_fire1$modis_date)
+
+# Incoming MODIS frp is scaled by 10; rescale
+ df_fire1$frp <- 0.1 * df_fire1$frp
+  
+# Remove NA-only columns
+ df_fire1 <- Filter(function(y) !all(is.na(y)),df_fire1)
+  
+# Convert satellite info -> NA if fire year != MODIS year. Delete point if MODIS year preceeds fire year.
+  df_fire2 <- df_fire1 %>% 
+    mutate(frp = replace(frp, fire_year != modis_year, NA),
+           satellite = replace(satellite, fire_year != modis_year, NA),
+           sample = replace(sample, fire_year != modis_year, NA)) %>% 
+    filter(., fire_year <= modis_year)  # 
+  
+# Arrange columns 
+  df_fire2 <- df_fire2 %>% 
+    relocate(modis_year, .after = fire_year) %>% 
+    relocate(modis_date, .after = fire_date)
+
+# Since each MODIS reading is associated with all fires at that location, multiple fire histories will exist at points
+# with multiple burns. Remove duplicates by sorting all point-grouped entries by descending MODIS-year, then take 
+# distinct entries
+ 
+ df_fire3 <- df_fire2 %>% group_by(ptid) %>% 
+      arrange(desc(modis_year)) %>% 
+      distinct(fireid, fire_year, .keep_all = T)
+  
+
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Merge files that have EVT class info but not fire history ####
+# ---------------------------------------------------------------- #
+
+# Get relevant filenames
+  filenames_evt <- list.files(file.path(path_data, "gee"), pattern = "*_processed.csv")
+
+# Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
+  suppressWarnings(files_w_evt_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
+  
+# Only 1 entry per point ID is necessary for EVT classes breakdown
+  files_w_evt_info <- files_w_evt_info %>% distinct(index, .keep_all = TRUE)
+  
+  
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Join fire history file and EVT file ####
+# ---------------------------------------------------------------- #
+
+# Take index and all class columns from EVT file
+joined_file <- df_fire3 %>% left_join(select(files_w_evt_info, index, starts_with("class")), by = c("index_old" = "index"))
+
+```
+
+
+```{r, echo=FALSE}
+
+# Save data and environment settings   
+print(paste0("R data file saved to ", file.path(path_data, data_out)))
+save(joined_file, file = file.path(path_data, data_out) )
+
+```
+

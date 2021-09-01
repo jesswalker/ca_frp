@@ -1,0 +1,115 @@
+---
+title:  "2_add_evtclass_to_gee_files"
+author: "JJWalker"
+date: "2021-08-19"
+output: html_notebook
+---
+
+```{r, echo = F}
+
+########################################################################### #
+# 
+# 2_add_evtclass_to_gee_files.Rmd
+#
+# This helper script adds EVT classes to the intersected GEE/vector fire files,
+# which have information for fires but lack EVT info.
+
+# Input: maxFRP_CA_gte4sqkm_yyyy_plus_fire_info_setyear.csv
+#        maxFRP_CA_gte4sqkm_yyyy_processed.csv
+#
+# Output: maxFRP_CA_gte4sqkm_2014to2020_fireInfo_evtClasses.csv
+# 
+#
+# Note hardcoded year range in output file
+#
+#
+########################################################################### #
+```
+
+
+
+```{r, echo = FALSE, message=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Set up paths and libraries ####
+# ---------------------------------------------------------------- #
+
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("dplyr"))
+
+# Set paths
+path_in = "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+
+startyr <- 2002
+endyr <- 2021
+
+file_out <- paste0("maxFRP_CA_gte4sqkm_", startyr, "to", endyr, "_fireInfo_evtClasses.csv")
+
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Merge files that have historical fire info but lack EVT classes ####
+# ---------------------------------------------------------------- #
+
+# This file contains fewer points because it excludes GEE pixel centroids that do not intersect
+# a known fire perimeter. 
+
+# Get relevant filenames
+  filenames_in <- list.files(file.path(path_in, "data"), pattern = "*_plus_fire_info_setyear.csv")
+
+# Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
+  suppressWarnings(files_w_fire_info <- do.call(rbind, lapply(file.path(path_data, filenames_in), read.csv, row.names=NULL)))
+
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Merge files that have EVT classes but lack fire info ####
+# ---------------------------------------------------------------- #
+
+# Get relevant filenames
+  filenames_frp <- list.files(file.path(path_data, "gee"), pattern = "*_processed.csv")
+
+# Read all files to a single file. Suppress warnings b/c of spurious "incomplete last line" error
+  suppressWarnings(files_w_evt_info <- do.call(rbind, lapply(file.path(path_data, "gee", filenames_frp), read.csv, row.names=NULL)))
+  
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Join both files ####
+# ---------------------------------------------------------------- #
+
+joined_file <- files_w_fire_info %>% left_join(select(files_w_evt_info, index, MaxFRP, sample, satellite, pixelarea, starts_with("class")), by = c("index", "pixelarea"))
+
+# Why not and the other satellite metrics? B/c they are set to NA for all years in which the MODIS year != fire year, so it will not be equal between files. 
+
+```
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Join both files ####
+# ---------------------------------------------------------------- #
+
+write.csv(joined_file, file.path(path_data, file_out), row.names = FALSE)
+
+
+```

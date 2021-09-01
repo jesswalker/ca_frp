@@ -1,0 +1,401 @@
+---
+title:  "Generate fire stats"
+author: "JJWalker"
+date: "2021-08-25"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
+---
+
+
+####_5_generate_stats_and_plots.Rmd_
+
+This script generates stats based on previously processed data.  
+
+_Input files_:  new_fire_df.RData
+
+_Output file_:  
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("lubridate", "dplyr")) # "kableExtra", "knitr") )
+#devtools::install_github("haozhu233/kableExtra")
+#library(kableExtra)
+
+# Set paths
+path_in = "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+path_r <- file.path(path_in, 'R')
+source(file.path(path_r, "ca_functions.R"))
+```
+
+```{r}
+
+load(file.path(path_r,'code4_output.Rdata')) #'new_fire_df.RData'
+
+```
+
+
+
+
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Define EVT columns ####
+# ---------------------------------------------------------------- #
+# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_2014_classes_ca.csv"
+
+# data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID for 2014 EVT classes
+
+data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
+
+evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
+
+
+# Change column names to conform to existing 
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
+names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+
+
+```
+
+```
+
+
+```{r}
+# Remove all pts for which frp is ONLY NA. This command duplicated in 3_process
+x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
+```
+
+```{r, echo = FALSE}
+# ---------------------------------------------------------------- #
+#### Function - Calculate burn number ####
+# ---------------------------------------------------------------- #
+# Count the number of times each point appears: 1 = 1st fire, 2 = 2nd, etc.
+  get_fire_order = function(df) {
+    df <- df %>% 
+      group_by(ptid) %>% 
+      arrange(fire_year) %>%  # put in ascending order
+      mutate(burn_num = seq_along(fire_year)) # assign a sequence number
+    df <- data.frame(df)
+    df$reburn <- 0 
+    df[which(as.numeric(df$burn_num) > 1), ]$reburn <- 1 # reburn: no = 0, yes = 1
+    df$year_int <- ave(df$fire_year, factor(df$ptid), FUN=function(t) c(0, diff(t))) # get years between fires
+  return(df)
+  }
+```
+
+
+```{r, echo = FALSE}
+
+# Remove all points that have an FRP reading wthout an associated fire ID
+# this step constrains points to only those within identified fire boundaries
+
+tmp <- subset(x_fires_noevt, is.na(fireid) & !is.na(frp))
+x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
+                                          
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Get burn number for each point ####
+# ---------------------------------------------------------------- #
+x_fires_noevt <- get_fire_order(x_fires_noevt)
+
+```
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Merge fire df with EVT classes ####
+# ---------------------------------------------------------------- #
+# Necessary housekeeping
+x_fires_noevt$ptid <- as.factor(x_fires_noevt$ptid)
+x_fires_noevt$satellite <- as.factor(x_fires_noevt$satellite)
+x_classes$ptid <- as.numeric(x_classes$ptid)
+
+# Merge
+x_fires_evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
+
+```
+The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. After processing, an example point id has this format:
+
+`r x_fires_noevt %>%
+  filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4,][[1]][1])# %>% 
+#  kable() %>%
+#  kable_styling()`
+  
+Fire year is assumed to be MODIS year for all fires 2002 - 2016. Other notes:
+
+  * FRP = NA if the fire was prior to the MODIS era (documented only through the BLM history database)  
+  * FRP pixels without a corresponding BLM database fire have BLM fire ID = NA  
+  * Points with an associated BLM fire ID after 2001 but without a corresponding FRP are excluded; although the fire could've been missed due to clouds, it could also have been that the area didn't burn (the GIS database does not differentiate between burned and unburned areas within fire perimeters)
+  * Satellite 0 = Terra, 1 = Aqua
+
+###EVT classes
+
+After EVT classes are added back to the dataframe, the process is to:
+
+1. Determine EVT class with the greatest proportion in each 1-km MODIS pixel
+2. Calculate area of that EVT class in each pixel
+3. Remove pixels in which none of the classes had a majority
+
+```{r, echo = FALSE, warning = F}
+
+# ---------------------------------------------------------------- #
+#### Process EVT classes ####
+# ---------------------------------------------------------------- #
+  
+  # Record the EVT class that had the greatest area in each 1-km MODIS pixel
+  x_fires_evt$max_evt_cat <- apply(x_fires_evt, 1, function(y) names(y[grepl("class", names(y))])[which.max(y[grepl("class", names(y))])[1]])
+  
+  # ...record the area that class represented
+  x_fires_evt$max_evt_area <- apply(x_fires_evt[grepl("class", names(x_fires_evt))], 1, max, na.rm = TRUE)
+  
+  # ...calculate the proportion of pixels that class represented
+  x_fires_evt$max_evt_prop <- x_fires_evt$max_evt_area/x_fires_evt$evt_sum
+  
+  # Remove rows in which max_class == NA; this means none of the classes had a majority
+  x_fires_evt <- x_fires_evt[!is.na(x_fires_evt$max_evt_cat), ]
+  
+  # Convert to factor
+  x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
+  
+  # Merge with file of EVT classes to associate a name with each class
+  x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
+  
+  # Get rid of all individual classes. dplyr rocks!
+  x_fires_evt <- x_fires_evt %>% select(-starts_with('class'))
+  
+  # Convert burn_num to factor
+  x_fires_evt$burn_num <- as.factor(x_fires_evt$burn_num)
+  
+  # Rearrange 
+  x_fires_evt <- x_fires_evt %>% select(ptid:evt_group, max_evt_cat)
+
+```
+
+`r x_fires_evt %>%
+  filter(ptid == 5767) %>% 
+  arrange(fire_year) %>% 
+  kable() %>%
+  kable_styling()`
+
+
+###Summary stats
+  
+```{r, echo = F}
+
+# ---------------------------------------------------------------- #
+#### Calculate summary stats ####
+# ---------------------------------------------------------------- #
+# FRP by burn count (data)
+x.frp.summary <- x_fires_evt %>%
+                 group_by(burn_num) %>%
+                 summarize(meanFRP = mean(frp, na.rm = T),
+                           medFRP = median(frp, na.rm = T),
+                           n = length(burn_num))
+# > x.frp.summary
+# # A tibble: 8 x 4
+#   burn_num meanFRP medFRP     n
+#   <fct>      <dbl>  <dbl> <int>
+# 1 1          339.   160.  87422
+# 2 2          240.   115.  26967
+# 3 3          222.   100.   2796
+# 4 4          165.    82.6   277
+# 5 5           74.7   58.7    77
+# 6 6           65.1   45.7    37
+# 7 7           62.3   40.6     9
+# 8 8           21.0   15.3     4
+
+```
+
+####Overall FRP summary
+
+`r x.frp.summary %>%
+      kable(digits = 1) %>%
+      kable_styling(bootstrap_options = c("striped", "hover"), full_width = F)`
+
+```{r, echo=FALSE}
+
+# Get # of EVT classes with majorities
+x_maxevt_gp <- x_fires_evt %>% 
+                  group_by(evt_group, burn_num) %>%
+                  summarize (meanFRP = mean(frp, na.rm = T), 
+                            medFRP = median(frp, na.rm = T), 
+                            n = length(burn_num))
+# > as.data.frame(x_maxevt_gp)
+#      evt_group burn_num   meanFRP medFRP     n
+# 1  Agriculture        1       NaN     NA    27
+# 2  Agriculture        2  62.40000  45.60    27
+# 3  Agriculture        3  78.75000  78.75     2
+# 4        Aspen        1 224.40000 224.40     8
+# 5        Aspen        2  99.28571  22.20     7
+# 6       Barren        1 216.88667 142.35    43
+# 7       Barren        2 126.98462  88.10    13
+# 8   BirchAspen        1 321.19057 165.00  9332
+# 9   BirchAspen        2 243.01473 123.20  4679
+# 10  BirchAspen        3 285.64657 111.60   571
+# 11  BirchAspen        4 337.02281 109.60    59
+# 12  BirchAspen        5  51.53333  58.70     9
+# 13  BirchAspen        6  92.46667 100.50     6
+# 14  BirchAspen        7 132.45000 132.45     2
+# 15  BirchAspen        8  12.60000  12.60     2
+# 16   BlkSpruce        1 415.16508 195.00 13918
+# 17   BlkSpruce        2 314.56620 149.30  3207
+# 18   BlkSpruce        3 271.44379 158.30   169
+# 19   BlkSpruce        4  63.40000  63.40     1
+# 20      Burned        1 133.59231 122.00    69
+# 21      Burned        2 137.25333  68.50    57
+# 22      Burned        3  64.09375  47.90    32
+# 23      Burned        4   6.10000   6.10     2
+# 24  Floodplain        1 223.09853 114.30  4276
+# 25  Floodplain        2 208.04540  92.40  1504
+# 26  Floodplain        3 155.82308  70.40    91
+# 27  Floodplain        4  44.10000  44.10     2
+# 28   Grassland        1 426.43622 219.55   735
+# 29   Grassland        2 196.87273 116.30   133
+# 30   Grassland        3 277.10526 137.30    19
+# 31     Hemlock        1 394.35000 394.35     2
+# 32       Marsh        1  74.60000  74.60     1
+# 33    Peatland        1 161.15177  95.50  1239
+# 34    Peatland        2 155.48267  62.20   284
+# 35    Peatland        3 111.92500  16.10     8
+# 36   Shrubland        1 292.93765 140.95  8030
+# 37   Shrubland        2 170.42466  94.00  2948
+# 38   Shrubland        3 139.88000  82.35   399
+# 39   Shrubland        4  77.01707  69.30    41
+# 40   Shrubland        5  92.78889  94.60     9
+# 41   Shrubland        6  54.50000  26.40     3
+# 42   Shrubland        7  55.00000  55.00     1
+# 43   Shrubland        8  18.00000  18.00     1
+# 44        Snow        1 142.61250 159.00    19
+# 45        Snow        2 456.81818 273.70    11
+# 46      Spruce        1 183.35000 142.40     6
+# 47       Swamp        1 160.11429  81.50    75
+# 48       Swamp        2 106.59200  50.00    29
+# 49       Swamp        3  75.50000  70.40     8
+# 50       Swamp        4 109.00000 109.00     3
+# 51      Tundra        1 235.87352 122.95 10167
+# 52      Tundra        2 186.83202  99.40  4204
+# 53      Tundra        3 159.45406  80.25   672
+# 54      Tundra        4  70.03883  63.00   105
+# 55      Tundra        5  76.75306  48.90    49
+# 56      Tundra        6  56.43182  40.40    22
+# 57      Tundra        7  44.15000  32.05     4
+# 58      Tundra        8  40.60000  40.60     1
+# 59       Water        1 153.62766  91.60   221
+# 60       Water        2 216.11852 124.00    83
+# 61       Water        3 338.84000 104.90     5
+# 62     Wetland        1 311.65947 148.90 21563
+# 63     Wetland        2 238.32670 107.90  5357
+# 64     Wetland        3 195.69537 109.10   493
+# 65     Wetland        4 246.77636 152.00    55
+# 66     Wetland        5  69.50000  51.85    10
+# 67     Wetland        6  75.05000  54.70     6
+# 68     Wetland        7  32.05000  32.05     2
+# 69   WhtSpruce        1 415.42280 199.70 17691
+# 70   WhtSpruce        2 294.40111 138.80  4424
+# 71   WhtSpruce        3 383.90184 197.60   327
+# 72   WhtSpruce        4 143.13333 150.00     9
+
+# Keep only those levels that have at least 10 points
+x_maxevt_gp_top <- x_maxevt_gp[x_maxevt_gp$n > 10, ]
+
+# Keep only those classes that have at least 2 burn levels
+x_maxevt_gp_top <- x_maxevt_gp_top[!(as.numeric(x_maxevt_gp_top$evt_group) %in% which(table(x_maxevt_gp_top$evt_group) < 2)), ]
+
+```
+
+####FRP summary by primary EVT class
+
+`r x_maxevt_gp_top %>%
+      kable(digits = 1) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)`
+      
+      
+```{r, echo = FALSE}
+
+# Calculate area of fire pixels per year (in hectares)
+x_area_summary <- x_fires_evt %>% 
+                    group_by(fire_year) %>% 
+                    filter(fire_year > 2001) %>% 
+                    summarize(sum_area = sum(evt_sum)*1e-4)  # 1 m^2 = 1e-4
+# > x.area.summary
+# # A tibble: 15 x 2
+#    fire_year sum_area
+#        <dbl>    <dbl>
+#  1      2002  577344.
+#  2      2003  183658.
+#  3      2004 2161004.
+#  4      2005 1590129.
+#  5      2006   59527.
+#  6      2007  166855.
+#  7      2008   27831.
+#  8      2009  910370.
+#  9      2010  283456.
+# 10      2011   72837.
+# 11      2012   64469.
+# 12      2013  351527.
+# 13      2014   74602.
+# 14      2015 1249929.
+# 15      2016  124953.
+
+```
+
+
+
+####FRP summary of fire pixel area detected per year (in hectares)
+
+`r x_area_summary %>%
+      kable(digits = 1) %>%
+      kable_styling(bootstrap_options = c("striped", "hover", "condensed"), full_width = F)`
+
+```{r, echo= FALSE}
+
+# Retain only the 1st fire in the MODIS era to ensure the veg type is applicable
+x_temp1 <- x_fires_evt %>% 
+  filter(fire_year > 2001) %>% 
+  group_by(ptid) %>% 
+  arrange(fire_year) %>% 
+  slice(1) %>% 
+  ungroup()
+
+x_temp2 <- x_fires_evt %>% 
+  filter(fire_year <= 2001)
+           
+           
+x_fires_evt_1stfrp <- rbind(x_temp1, x_temp2)
+
+```
+
+
+####Save data
+
+RData file is saved to `r file.path(path_r, rdata)`
+```{r, echo=FALSE}
+
+# Save data and environment settings   
+print(paste0("R data file saved to ", file.path(path_r, rdata)))
+save.image(file = file.path(path_r, rdata))
+
+```

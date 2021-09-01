@@ -14,34 +14,39 @@
 # Input: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy.csv
 # Output: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy_processed.csv
 #
-# To complete the next step (intersection of GEE files with vector fire data),
+# To complete the next step--intersecting GEE files with vector fire data via
+# the python script intersect_frp_data_with_fire_perimeters.py),
 # outputting files with all 100+ EVT classes removed was necessary:
 #
 # Output2: maxFRP_CA_gte4sqkm_yyyy_processed_slim.csv 
 #
-#
+# Also added a consolidated version:
+# Output3: maxFRP_CA_gte4sqkm_yyyytoyyyy_processed_slim.csv (hardcoded filename)
+# 
 ########################################################################### #
 
 library(dplyr)
 
 # Set path info
 path_in = "/home/jovyan/ca_frp/data/gee/"
+path_out = "/home/jovyan/ca_frp/data"
 filenames_in <- list.files(path_in, pattern = "*.csv")
+filename_out_slim_all <- "maxFRP_CA_gte4sqkm_2001to2020_processed_slim.csv"
 
 # Process each file
 for (filename_in in filenames_in) {
   
   x <- read.csv(file.path(path_in, filename_in), header = T)
-  filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in))-4)
+  filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in)) - 4)
   filename_out <- paste0(filename_sub, "_processed.csv")
-  filename2_out <- paste0(filename_sub, "_processed_slim.csv")
+  filename_out_slim <- paste0(filename_sub, "_processed_slim.csv")
   
   # rename first column for convenience
   colnames(x)[1] <- "index"
   
   # R slaps an "X" in front of numerical columns; switch it to "class"
   names_sub <- names(x)[which((substring(names(x), 1, 1) == "X"))]
-  names(x)[which((substring(names(x), 1,1) == "X"))] <- paste0("class", substring(names_sub, 2))
+  names(x)[which((substring(names(x), 1, 1) == "X"))] <- paste0("class", substring(names_sub, 2))
   
   # get rid of dots
   names(x) <- gsub(".", "", names(x), fixed = TRUE)
@@ -85,10 +90,21 @@ for (filename_in in filenames_in) {
   x <- x[-1, ]
   
   # save output
-  #write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
   
   # remove EVT classes by dropping all 'class' columns
   x <- x %>% select(-contains('class'))
   
-  #write.csv(x, file = file.path(path_in, filename2_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_in, filename_out_slim), row.names = FALSE)
 }
+
+# Merge all "slim" files into a single one that can be processed in Arc
+
+setwd(path_in)
+mergedData <- 
+  do.call(rbind,
+          lapply(list.files(path_in, pattern = "*slim.csv"), read.csv))
+
+write.csv(mergedData, file = file.path(path_out, filename_out_slim_all), row.names = FALSE)
+
+

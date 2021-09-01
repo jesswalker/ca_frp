@@ -1,0 +1,213 @@
+---
+title:  "Create new fire dataframe"
+author: "JJWalker"
+date: "2021-08-25"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
+---
+
+
+####_4_create_new_fire_df.Rmd_
+
+This script creates new, merged data of EVT and fire perimeter information.  
+
+_Input files_:  processed_data_prior_to_new_df.RData  
+
+_Output file_:  new_fire_df.RData
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("lubridate", "dplyr") )
+
+# Set paths
+path_in = "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+rdata <- "new_fire_df.RData"
+```
+
+```{r}
+
+#load(file.path(path_data,'processed_data_prior_to_new_df.RData'))
+load(file.path(path_data,'data_from_script2.RData'))
+
+```
+
+
+```{r, echo=FALSE, warning=F}
+
+# ---------------------------------------------------------------- #
+#### Set up the new fire df ####
+# ---------------------------------------------------------------- #
+
+# We need a row for each unique fire_year and modis_year.
+# fire_years are derived from the CA fire history database; modis_years are from FRP data.
+# Both are necessary since some modis_years do not have a corresponding fire_year.
+# Each will have an FRP value for each MODIS year; pre-MODIS years get frp = NA.
+
+# Set up df to hold entries for all points
+  x_holder <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),  c('ptid', 'lat', 'long', 'fire_year', 'frp', 'fireid', 'sample',  'satellite'))
+
+# Create df without classes
+  x_noclasses <- x_orig %>% select(-starts_with('class'))
+  
+# Create df of classes info for each pixel. Remove duplicates to get 1 row for each ptid. Include areal sum for each pixel
+  x_classes <- x_orig %>% 
+                select(ptid, starts_with('class')) %>% 
+                distinct(ptid, .keep_all = T) %>% 
+                mutate(evt_sum = rowSums(.[, -1], na.rm = TRUE))
+
+```
+
+
+```{r, echo=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Function to create new fire df ####
+# ---------------------------------------------------------------- #
+
+# For each ptid:
+# - Get unique years from combined set of fire years and modis years
+#   (both are necessary b/c some modis years are not associated with a CA fire history perimeter) 
+# - Construct a new dataframe with invariant info (lat, long, evt)
+# - Replicate for the number of years 
+
+create_new_fire_df = function(f) {
+
+  # Trim factor levels
+  f$ptid <- factor(f$ptid)
+  
+  # Create list of all unique fire and MODIS years 
+  years <- unique(c(f$fire_year, f$modis_year))
+  
+  # Set up new df with invariant point info for given # of years
+  f_new <- f[1, c("ptid", "lat", "lon")] %>% slice(rep(1:n(), each = length(years)))
+
+  # Add fire years
+  f_new <- cbind(f_new, fire_year = years)
+
+  # Get the frp corresponding to the modis year. Years preceeding modis era get NA
+  # 'distinct' is to catch duplicates of modis year/frp, since the same frp is recorded for 
+  # multiple fire years that preceed the modis era
+  merge1 <- left_join(f_new, distinct(dplyr::select(f, modis_year, frp, sample, satellite)), by = c("fire_year" = "modis_year"))
+     
+  # Join to get fire_id, etc.
+  merge2 <- merge1 %>% left_join(distinct(dplyr::select(f, fireid, fire_year), fire_year, .keep_all = T), by = c("fire_year"))
+  
+  # Consolidate wth holder dataframe
+   x_holder <- rbind(x_holder, merge2)
+   
+   return(x_holder) 
+   
+}
+
+```  
+
+```{r, echo=FALSE}
+
+# Split df since the function bombs with all included
+
+# Convert index factors to numbers
+x_noclasses$ptid2 <- as.numeric(as.character(x_noclasses$ptid))
+
+x_noclasses_ptid_lte10000 <- subset(x_noclasses, ptid2 <= 10000)
+x_noclasses_ptid_lte20000 <- subset(x_noclasses, ptid2 > 10000 & ptid2 <= 20000)
+x_noclasses_ptid_lte30000 <-  subset(x_noclasses, ptid2 > 20000 & ptid2 <= 30000)
+x_noclasses_ptid_lte40000 <-  subset(x_noclasses, ptid2 > 30000 & ptid2 <= 40000)
+x_noclasses_ptid_lte50000 <-  subset(x_noclasses, ptid2 > 40000 & ptid2 <= 50000)
+x_noclasses_ptid_lte60000 <-  subset(x_noclasses, ptid2 > 50000 & ptid2 <= 60000)
+
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Create new fire dataframe ####
+# ---------------------------------------------------------------- #
+
+# ** THIS TAKES A WHILE **
+# *** ~45 min even on Pangeo ***
+# apply fcn to each ptid faction
+
+# Does not run as a single try
+#lst_fires <- x_noclasses %>% 
+#            group_by(ptid) %>%
+#            do(create_new_fire_df(.))
+
+# This work-around is kludgy but hey...it works. Fight the urge to make it more elegant. 
+
+fireslte10000 <- x_noclasses_ptid_lte10000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte20000 <- x_noclasses_ptid_lte20000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte30000 <- x_noclasses_ptid_lte30000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte40000 <- x_noclasses_ptid_lte40000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte50000 <- x_noclasses_ptid_lte50000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+fireslte60000 <- x_noclasses_ptid_lte60000 %>% 
+            group_by(ptid) %>%
+            do(create_new_fire_df(.))
+
+#fireslte70000 <- x_noclasses_ptid_lte70000 %>% 
+#            group_by(ptid) %>%
+#            do(create_new_fire_df(.))
+
+all_fires <- rbind(fireslte10000, fireslte20000, fireslte30000, fireslte40000, fireslte50000, fireslte60000)
+
+# Convert from df of lists to just a df
+x_fires_noevt <- data.frame(all_fires)
+x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year), ]
+
+# Remove all rows in which MODIS-era fires have an NA FRP
+# dplyr rocks with the anti_join
+frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
+x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
+
+# Remove all points for which frp is only NA
+x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
+
+```
+
+
+
+```{r}
+
+# Save the image 
+
+save.image(file = file.path(path_in, "R", rdata))
+save(x_fires_noevt, x_classes, file = file.path(path_in, "R", "code4_output.Rdata")) 
+
+
+```
+
+ 

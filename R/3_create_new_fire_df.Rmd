@@ -195,11 +195,10 @@ x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year
 frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
 x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 
-# Remove all points for which frp is only NA
+# Remove points for which all associated frp values are only NA
 x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 
 ```
-
 
 
 ```{r}
@@ -207,8 +206,7 @@ x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 # Save the image 
 
 save.image(file = file.path(path_in, "R", rdata))
-save(x_fires_noevt, x_classes, file = file.path(path_in, "R", "code4_output.Rdata")) 
-
+save(x_fires_noevt, x_classes, file = file.path(path_data, data_out)) 
 
 ```
 

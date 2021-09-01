@@ -11,14 +11,14 @@ output:
 ---
 
 
-####_5_generate_stats_noKable.Rmd_
+####_4_generate_stats_noKable.Rmd_
 
 This script generates stats based on previously processed data. Given the difficulty in  
 loading kableExtra on Pangeo, that library is not used.
 
 _Input files_:  data_from_script3.RData
 
-_Output file_:  data_from_script4.RData
+_Output file_:  data_from_script4_nk.RData
 
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
@@ -109,6 +109,14 @@ x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
                                           
 ```
 
+```{r}
+
+# Remove all points in scan angles > 27degrees (only samples 334 - 1020)
+
+x_fires_noevt <- x_fires_noevt %>% filter(sample >= 334 & sample <= 1020)
+
+```
+
 
 ```{r, echo = FALSE}
 
@@ -118,6 +126,7 @@ x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
 x_fires_noevt <- get_fire_order(x_fires_noevt)
 
 ```
+
 
 ```{r, echo = FALSE}
 
@@ -394,7 +403,7 @@ RData file is saved to `r file.path(path_r, rdata)`
 ```{r, echo=FALSE}
 
 # Save data and environment settings   
-print(paste0("R data file saved to ", file.path(path_r, rdata)))
-save.image(file = file.path(path_r, rdata))
+print(paste0("R data file saved to ", file.path(path_data, data_out)))
+save.image(file = file.path(path_data, data_out))
 
 ```

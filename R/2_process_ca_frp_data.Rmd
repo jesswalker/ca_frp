@@ -42,12 +42,12 @@ load_libraries <- function(libs){
   }
 }
 
-load_libraries(c("dplyr"))
+load_libraries(c("dplyr", "lubridate"))
 
 # Set paths and files
 path_in <- "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
-data_in <- 'maxFRP_CA_gte4sqkm_2001to2020_processed_slim_plus_fire_info.csv'
+data_in <- 'maxFRP_CA_gte4sqkm_2002to2020_processed_slim_plus_fire_info.csv' 
 data_out <- "data_from_script2.RData"
 
 ```

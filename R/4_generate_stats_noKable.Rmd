@@ -73,8 +73,10 @@ evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=downloa
 # Change column names to conform to existing 
 #names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
 #names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
-names(evt_classes) <- c('group_desc', 'group', 'desc', 'evt_number', 'color', 'legend', 'description', 'isautoname'))  
+names(evt_classes) <- c('evt_group_desc', 'evt_group', 'evt_desc', 'evt_number', 'color', 'legend', 'description', 'isautoname')  
 
+evt_classes <- evt_classes %>% 
+               select(-c(color:isautoname))
 
 ```
 
@@ -116,7 +118,7 @@ x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
 
 # Remove all points in scan angles > 27degrees (only samples 334 - 1020)
 
-x_fires_noevt <- x_fires_noevt %>% filter(sample >= 334 & sample <= 1020)
+#x_fires_noevt <- x_fires_noevt %>% filter(sample >= 334 & sample <= 1020)
 
 ```
 
@@ -191,8 +193,11 @@ After EVT classes are added back to the dataframe, the process is to:
   # Trim "class" prefix off classes
   x_fires_evt$max_evt_cat <- gsub('class', '', x_fires_evt$max_evt_cat)
   
+  x_fires_evt <- x_fires_evt %>% 
+                 mutate(max_evt_cat = as.numeric(max_evt_cat))
+  
   # Merge with file of EVT classes to associate a name with each class
-  x_fires_evt <- merge(x_fires_evt, evt_classes, by.x = "max_evt_cat", by.y = "evt_number")
+  x_fires_evt <- left_join(x_fires_evt, evt_classes, c("max_evt_cat" = "evt_number"))
   
   # Get rid of all individual classes. dplyr rocks!
   x_fires_evt <- x_fires_evt %>% select(-starts_with('class'))
@@ -201,7 +206,7 @@ After EVT classes are added back to the dataframe, the process is to:
   x_fires_evt$burn_num <- as.factor(x_fires_evt$burn_num)
   
   # Rearrange 
-  x_fires_evt <- x_fires_evt %>% select(ptid:evt_group, max_evt_cat)
+  x_fires_evt <- x_fires_evt %>% select(ptid:evt_number, max_evt_cat)
 
 ```
 

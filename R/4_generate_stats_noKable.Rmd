@@ -64,15 +64,16 @@ load(file.path(path_data, data_in))
 # Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_2014_classes_ca.csv"
 
 # data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID for 2014 EVT classes
+# data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
 
-data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
-
+# 2001 Sleeter grouped classes
+data_url <-  "1l3-MmB6ut3GAUyziFyryW_yw4YmwtJUH"  # google ID for 2001 EVT classes
 evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
-
 
 # Change column names to conform to existing 
 #names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
-names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+names(evt_classes) <- c('group_desc', 'group', 'desc', 'evt_number', 'color', 'legend', 'description', 'isautoname'))  
 
 
 ```
@@ -91,7 +92,9 @@ names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 
       mutate(burn_num = seq_along(fire_year)) # assign a sequence number
     df <- data.frame(df)
     df$reburn <- 0 
-    df[which(as.numeric(df$burn_num) > 1), ]$reburn <- 1 # reburn: no = 0, yes = 1
+    
+    df %>%
+       mutate(reburn = case_when(burn_num > 1 ~ 1)) # reburn: no = 0, yes = 1
     df$year_int <- ave(df$fire_year, factor(df$ptid), FUN=function(t) c(0, diff(t))) # get years between fires
   return(df)
   }

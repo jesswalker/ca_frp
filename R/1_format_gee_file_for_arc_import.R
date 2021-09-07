@@ -23,11 +23,11 @@
 
 library(dplyr)
 
-# Set path info
+# Set paths and files
 path_in = "/home/jovyan/ca_frp"
 path_data = file.path(path_in, "data")
-filenames_in <- list.files(path_in, pattern = "*.csv")
-filename_out_slim_all <- "maxFRP_CA_gte4sqkm_2001to2020_processed_slim.csv"
+filenames_in <- list.files(file.path(path_data, "gee"), pattern = "*.csv")
+filename_out_slim_all <- "maxFRP_CA_gte4sqkm_20012to2020_processed_slim.csv"
 
 # Process each file
 for (filename_in in filenames_in) {
@@ -96,11 +96,11 @@ for (filename_in in filenames_in) {
 
 # Merge all "slim" files into a single one that can be processed in Arc
 
-setwd(path_in)
+setwd(file.path(path_data, "gee"))
 mergedData <- 
   do.call(rbind,
           lapply(list.files(file.path(path_data, "gee"), pattern = "*slim.csv"), read.csv))
 
-write.csv(mergedData, file = file.path(path_data, filename_out_slim_all), row.names = FALSE)
+write.csv(mergedData, file = file.path(path_data, "gee", filename_out_slim_all), row.names = FALSE)
 
 

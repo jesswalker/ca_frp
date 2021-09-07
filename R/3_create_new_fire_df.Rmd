@@ -192,7 +192,7 @@ x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year
 
 # Remove all rows in which MODIS-era fires have an NA FRP
 # dplyr rocks with the anti_join
-frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
+frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_noclasses$modis_date)))
 x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 
 # Remove points for which all associated frp values are only NA
@@ -204,8 +204,7 @@ x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 ```{r}
 
 # Save the image 
-
-save.image(file = file.path(path_in, "R", rdata))
+print(paste0("R data file saved to ", file.path(path_data, data_out)))
 save(x_fires_noevt, x_classes, file = file.path(path_data, data_out)) 
 
 ```

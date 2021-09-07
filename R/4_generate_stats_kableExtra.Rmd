@@ -81,6 +81,7 @@ evt_classes <- evt_classes %>%
 
 
 ```{r, echo = FALSE}
+
 # ---------------------------------------------------------------- #
 #### Function - Calculate burn number ####
 # ---------------------------------------------------------------- #
@@ -92,12 +93,13 @@ evt_classes <- evt_classes %>%
       mutate(burn_num = seq_along(fire_year)) # assign a sequence number
     df <- data.frame(df)
     df$reburn <- 0 
-    df %>%
-       mutate(reburn = case_when(burn_num > 1 ~ 1)) # reburn: no = 0, yes = 1
+    
+    df <- df %>%
+       mutate(reburn = ifelse(burn_num > 1, 1, 0)) # reburn: no = 0, yes = 1
     df$year_int <- ave(df$fire_year, factor(df$ptid), FUN=function(t) c(0, diff(t))) # get years between fires
-  
-    return(df)
+  return(df)
   }
+
 ```
 
 

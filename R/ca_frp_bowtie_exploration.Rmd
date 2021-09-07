@@ -1,0 +1,540 @@
+---
+title:  "CA FRP bowtie exploration"
+author: "JJWalker"
+date: "2021-08-25"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
+---
+
+
+####_CA FRP bowtie exploration.Rmd
+
+This script calculates FRP adjustments  
+
+_Input files_:  data_from_script4_k.RData  
+
+_Output file_:  data_from_bowtie_correction.RData
+
+
+Here we use the file x_fires_evt to explore how to best correct the effects of look angle on FRP.  
+This file relies on ALL data point--snot the subset based on sample. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("lubridate", "dplyr", "kableExtra", "knitr"))
+#devtools::install_github("haozhu233/kableExtra")
+
+# Set paths
+path_in = 'E:/OneDrive - DOI/projects/ca_frp'
+path_data <- file.path(path_in, "data")
+data_in <- "data_from_script4_k.Rdata"
+path_r <- file.path(path_in, 'R')
+data_out <- "data_adjusted_by_sample.Rdata"
+source(file.path(path_r, "ca_functions.R"))
+
+```
+
+  
+```{r, echo = F, warning = F}
+
+# ---------------------------------------------------------------- #
+#### Correct for bowtie MODIS effect ####
+# ---------------------------------------------------------------- #
+
+# Calculate mean and median by sample for combined Terra/Aqua
+
+x_bysample_all <- x_fires_evt %>% 
+  group_by(sample, satellite) %>% 
+  summarize(frp_mean = mean(frp), frp_med = median(frp))
+
+```
+ 
+Terra and Aqua distributions are not identical, so calculate polynomial fits separately for each.
+ 
+```{r, echo=FALSE}
+
+# Subset main dataset to Terra or Aqua fires only
+x_fires_evt.t <- subset(x_fires_evt, satellite == '0')
+x_fires_evt.a <- subset(x_fires_evt, satellite == '1')
+
+```
+ 
+ 
+ Raw FRP values by sample
+ 
+```{r,echo = FALSE, warning=FALSE}
+
+ggplot(x_fires_evt, aes(sample, frp, group = satellite, color = satellite)) + geom_point() +
+  scale_y_log10() +
+  scale_color_hue(labels = c('Terra', 'Aqua'))
+
+```
+Simply remove any points outside of 27º (Heward et al, 2013). That's 1/2 of the range: 1354/2 = 667  ~= 334 - (1354 - 334 = 1020)
+
+```{r, echo = FALSE}
+
+# Remove all points in scan angles > 27degrees (only samples 334 - 1020)
+
+# x_fires_noevt <- x_fires_noevt %>% filter(sample >= 334 & sample <= 1020)
+
+```
+
+
+Manually calculate line for Terra points
+```{r}
+# t - manually calculate line
+
+points <- data.frame('x' = c(200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1050, 1100,
+                             1150), 
+                     'y'= c(3900, 3100, 2590, 2100, 1800, 1680, 1580, 1710, 1910, 2380, 2620, 3100,
+                            3750))
+
+ggplot(x_fires_evt.t, aes(sample, frp)) + geom_point() + 
+  scale_x_continuous(breaks = seq(0, 1354, by = 100)) + 
+  scale_y_continuous(breaks = seq(0, 10000, by = 500)) + 
+  geom_line(data = points, aes(x,y), color = 'red')
+
+
+```
+Try to get the polynomial equation for the line
+```{r, echo = F}
+
+# get equation
+fit_t.tp <- lm(y ~ poly(x, 2, raw = TRUE), data = points)
+coeff0 <- summary(fit_t.tp)$coefficients[1, 1] 
+coeff1 <- summary(fit_t.tp)$coefficients[2, 1] 
+coeff2 <- summary(fit_t.tp)$coefficients[3, 1]
+
+points$fit <- coeff0 + (coeff1 * points$x) + (coeff2 * (points$x^2))
+
+tmp <- data.frame('pt' = seq(0, 1353))
+tmp$pt_fit <- coeff0 + (coeff1 * tmp$pt) + (coeff2 * (tmp$pt^2))
+
+ggplot(x_fires_evt.t, aes(sample, frp)) + geom_point() + 
+  scale_x_continuous(breaks = seq(0, 1354, by = 100)) + 
+  scale_y_continuous(breaks = seq(0, 10000, by = 500)) + 
+  geom_line(data = points, aes(x, fit), color = 'red') +
+  geom_line(data = tmp, aes(pt, pt_fit), color = "blue")
+
+```
+It just doesn't correct the data properly
+```{r}
+
+frp.min <- min(points$fit, na.rm = T)
+
+x_fires_evt.t$fit_all <- coeff0 + (coeff1 * x_fires_evt.t$sample) + (coeff2 * (x_fires_evt.t$sample^2))
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x_fires_evt.t$adj_all <- frp.min/x_fires_evt.t$fit_all
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.t$frp_adj_all <- x_fires_evt.t$frp * x_fires_evt.t$adj_all
+
+ggplot(x_fires_evt.t, aes(sample, frp_adj_all)) + geom_point(color = 'blue') +
+  geom_point(aes(sample, fit_all), color = "red") 
+
+```
+
+ TERRA - Calculate polynomial fit for ALL FRP values
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+####  TERRA - Calculate polynomial fit for ALL FRP values ####
+# ---------------------------------------------------------------- #
+
+fit_all <- lm(frp ~ poly(sample, 2, raw = TRUE), data = x_fires_evt.t)
+coeff0 <- summary(fit_all)$coefficients[1, 1]
+coeff1 <- summary(fit_all)$coefficients[2, 1]
+coeff2 <- summary(fit_all)$coefficients[3, 1]
+
+x_fires_evt.t$fit_all <- coeff0 + (coeff1 * x_fires_evt.t$sample) + (coeff2 * (x_fires_evt.t$sample^2))
+
+# Added
+x_fires_evt.t$test <- 27546 + (22.17 * x_fires_evt.t$sample) + (0.0095 * (x_fires_evt.t$sample^2))
+
+# Adjust data  
+frp.min <- min(x_fires_evt.t$fit_all, na.rm = T)
+
+# Added
+frp.mint <- min(x_fires_evt.t$test, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x_fires_evt.t$adj_all <- frp.min/x_fires_evt.t$fit_all
+
+x_fires_evt.t$adj_test <- frp.mint/x_fires_evt.t$test
+x_fires_evt.t$frp_adj_test <- x_fires_evt.t$frp + x_fires_evt.t$adj_test
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.t$frp_adj_all <- x_fires_evt.t$frp * x_fires_evt.t$adj_all
+
+```
+
+```{r,echo = FALSE, warning=FALSE}
+
+ggplot(x_fires_evt.t, aes(sample, frp)) + geom_point() +
+  scale_y_log10() 
+
+```
+
+Fit a polynomial correction line to all Terra FRP values:
+
+```{r, echo= FALSE, warning= FALSE, message = FALSE}
+
+# ---------------------------------------------------------------- #
+#### TERRA - Plot adjustment line across samples ####
+# ---------------------------------------------------------------- #
+
+ggplot(x_fires_evt.t, aes(sample, frp)) + geom_point() +
+  geom_point(aes(sample, fit_all), color = "red") +
+  scale_y_log10()
+
+```
+
+When applied to the raw FRP values, the correction looks ok but not great. The lack of lower values at the extreme look angles is likely due to the decreased sensitivity of the sensor to lower FRP values there.
+
+```{r, echo= FALSE, warning= FALSE}
+# ---------------------------------------------------------------- #
+#### TERRA - Plot all FRP points by sample, with adjusted data ####
+# ---------------------------------------------------------------- #
+
+ggplot(x_fires_evt.t, aes(sample, frp)) + 
+  geom_point() +
+  geom_point(data = x_fires_evt.t, aes(sample, frp_adj_all), color = "blue") +
+  scale_y_log10()
+```
+
+
+```{r, echo=F, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+# TERRA - Calculate polynomial fit on FRP values by sample ####
+# ---------------------------------------------------------------- #
+
+# Summarize by sample
+x.bysample.t <- x_fires_evt.t %>% 
+  group_by(sample) %>% 
+  summarize(frp_mean = mean(frp), frp_med = median(frp))
+
+# Calculate polynomial fit - MEDIAN
+fit_med <- lm(frp_med ~ poly(sample, 2, raw = TRUE), data = x.bysample.t)
+coeff0 <- summary(fit_med)$coefficients[1, 1]
+coeff1 <- summary(fit_med)$coefficients[2, 1]
+coeff2 <- summary(fit_med)$coefficients[3, 1]
+x.bysample.t$fit_med <- coeff0 + (coeff1 * x.bysample.t$sample) + (coeff2 * (x.bysample.t$sample^2))
+
+# Calculate polynomial fit - MEAN
+fit_mean <- lm(frp_mean ~ poly(sample, 2, raw = TRUE), data = x.bysample.t)
+coeff0 <- summary(fit_mean)$coefficients[1, 1]
+coeff1 <- summary(fit_mean)$coefficients[2, 1]
+coeff2 <- summary(fit_mean)$coefficients[3, 1]
+x.bysample.t$fit_mean <- coeff0 + (coeff1 * x.bysample.t$sample) + (coeff2 *(x.bysample.t$sample^2))
+```
+
+
+```{r, echo = F, warning = FALSE}
+
+# ---------------------------------------------------------------- #
+# TERRA - Calculate and apply median and mean FRP correction
+# ---------------------------------------------------------------- #
+
+# Get minimum value of MEDIAN fit
+# ---------------------------------
+frp.min <- min(x.bysample.t$fit_med, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x.bysample.t$adj_med <- frp.min / x.bysample.t$fit_med
+
+# Apply the correction in the consolidated database
+x.bysample.t$frp_adj_med <- x.bysample.t$frp_med * x.bysample.t$adj_med
+
+# Associate the sample # in the full database with the adjustment ratio
+x_fires_evt.t <- left_join(x_fires_evt.t, distinct(dplyr::select(x.bysample.t, sample, adj_med)), by = "sample")
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.t$frp_adj_med <- x_fires_evt.t$frp * x_fires_evt.t$adj_med
+
+
+# Get minimum value of MEAN fit
+# ---------------------------------
+frp.min <- min(x.bysample.t$fit_mean, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x.bysample.t$adj_mean <- frp.min / x.bysample.t$fit_mean
+
+# Apply the correction in the consolidated database
+x.bysample.t$frp_adj_mean <- x.bysample.t$frp_mean * x.bysample.t$adj_mean
+
+# Associate the sample # in the full database with the adjustment ratio
+x_fires_evt.t <- left_join(x_fires_evt.t, distinct(dplyr::select(x.bysample.t, sample, adj_mean)), by = "sample")
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.t$frp_adj_mean <- x_fires_evt.t$frp * x_fires_evt.t$adj_mean
+
+```
+
+#### Terra MEDIAN with polynomial line fit
+
+```{r, echo=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+####  Plot TERRA MEDIAN ###
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.t, aes(sample, frp_med)) + 
+  geom_point() + 
+  geom_line(data = x.bysample.t, aes(sample, fit_med, color = satellite), size = 1.2, color = "red") +
+  theme_bw() +
+  labs(x = "Sample", y = "Median FRP") 
+```
+
+#### Terra MEDIAN with polynomial line fit and adjusted points
+
+```{r, echo=F, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Look at improvement in median for TERRA ####
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.t, aes(sample, frp_med)) + 
+  geom_point() + 
+  geom_line(aes(sample, fit_med, color = satellite), size = 1.2, color = "red") +
+  geom_point(aes(sample, frp_adj_med), color = 'blue') +
+  theme_bw() +
+  labs(x = "Sample", y = "Median FRP") 
+```
+
+#### Terra MEAN with polynomial line fit
+
+```{r, echo=FALSE, warning=FALSE}
+# ---------------------------------------------------------------- #
+#### Plot TERRA MEAN ####
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.t, aes(sample, frp_mean)) + 
+  geom_point() + 
+  geom_line(aes(sample, fit_mean, color = satellite), size = 1.2, color = "red") +
+  theme_bw() +
+  labs(x = "Sample", y = "Mean FRP") # +
+ # scale_y_log10()
+```
+#### Terra MEAN with polynomial line fit and adjusted points
+
+```{r, echo=F, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Look at improvement in mean for TERRA ####
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.t, aes(sample, frp_mean)) + 
+  geom_point() + 
+  geom_line(aes(sample, fit_mean, color = satellite), size = 1.2, color = "red") +
+  geom_point(aes(sample, frp_adj_mean), color = 'blue') +
+  theme_bw() +
+  labs(x = "Sample", y = "Mean FRP") # +
+  #scale_y_log10()
+
+```
+
+
+```{r, echo=F, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### AQUA - Calculate polynomial fit on FRP values by sample ####
+# ---------------------------------------------------------------- #
+
+# Summarize by sample
+x.bysample.a <- x_fires_evt.a %>% 
+  group_by(sample) %>% 
+  summarize(frp_mean = mean(frp), frp_med = median(frp))
+
+# Calculate polynomial fit - MEDIAN
+fit_med <- lm(frp_med ~ poly(sample, 2, raw = TRUE), data = x.bysample.a)
+coeff0 <- summary(fit_med)$coefficients[1, 1]
+coeff1 <- summary(fit_med)$coefficients[2, 1]
+coeff2 <- summary(fit_med)$coefficients[3, 1]
+x.bysample.a$fit_med <- coeff0 + (coeff1 * x.bysample.a$sample) + (coeff2 * (x.bysample.a$sample^2))
+
+# Calculate polynomial fit - MEAN
+fit_mean <- lm(frp_mean ~ poly(sample, 2, raw = TRUE), data = x.bysample.a)
+coeff0 <- summary(fit_mean)$coefficients[1, 1]
+coeff1 <- summary(fit_mean)$coefficients[2, 1]
+coeff2 <- summary(fit_mean)$coefficients[3, 1]
+x.bysample.a$fit_mean <- coeff0 + (coeff1 * x.bysample.a$sample) + (coeff2 *(x.bysample.a$sample^2))
+
+
+```
+
+
+```{r, echo=FALSE}
+
+# AQUA - manually calculate line 
+
+points <- data.frame('x' = c(200, 250, 300, 400, 500, 600, 700, 800, 900, 1000, 1050, 1100,
+                             1150), 
+                     'y'= c(3900, 3200, 2790, 2100, 1800, 1680, 1580, 1710, 1910, 2380, 2620, 3100,
+                            3750))
+
+ggplot(x_fires_evt.a, aes(sample, frp)) + geom_point() + 
+  scale_x_continuous(breaks = seq(0, 1354, by = 100)) + 
+  scale_y_continuous(breaks = seq(0, 10000, by = 500)) + 
+  geom_line(data = points, aes(x,y), color = 'red')
+
+```
+```{r}
+
+#AQUA from Freeborn et al, 2011:  y = −0.0095x2 + 22.17x + 27546
+```
+
+
+
+```{r, echo = F, warning = FALSE}
+
+# ---------------------------------------------------------------- #
+# AQUA - Calculate and apply median and mean FRP correction
+# ---------------------------------------------------------------- #
+
+# Get minimum value of MEDIAN fit
+# ---------------------------------
+frp.min <- min(x.bysample.a$fit_med, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x.bysample.a$adj_med <- frp.min / x.bysample.a$fit_med
+
+# Apply the correction in the consolidated database
+x.bysample.a$frp_adj_med <- x.bysample.a$frp_med * x.bysample.a$adj_med
+
+# Associate the sample # in the full database with the adjustment ratio
+x_fires_evt.a <- left_join(x_fires_evt.a, distinct(dplyr::select(x.bysample.a, sample, adj_med)), by = "sample")
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.a$frp_adj_med <- x_fires_evt.a$frp * x_fires_evt.a$adj_med
+
+
+# Get minimum value of MEAN fit
+# ---------------------------------
+frp.min <- min(x.bysample.a$fit_mean, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio for each sample
+x.bysample.a$adj_mean <- frp.min / x.bysample.a$fit_mean
+
+# Apply the correction in the consolidated database
+x.bysample.a$frp_adj_mean <- x.bysample.a$frp_mean * x.bysample.a$adj_mean
+
+# Associate the sample # in the full database with the adjustment ratio
+x_fires_evt.a <- left_join(x_fires_evt.a, distinct(dplyr::select(x.bysample.a, sample, adj_mean)), by = "sample")
+
+# Multiply the actual frp by that adjustment 
+x_fires_evt.a$frp_adj_mean <- x_fires_evt.a$frp * x_fires_evt.a$adj_mean
+
+```
+
+
+#### Aqua MEDIAN with polynomial line fit
+
+```{r, echo=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+####  Plot TERRA MEDIAN ###
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.a, aes(sample, frp_med)) + 
+  geom_point() + 
+  geom_line(aes(sample, fit_med, color = satellite), size = 1.2, color = "red") +
+  theme_bw() +
+  labs(x = "Sample", y = "Median FRP") 
+```
+
+
+#### Aqua MEDIAN with polynomial line fit and adjusted points
+
+```{r, echo=F, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Look at improvement in median for AQUA ####
+# ---------------------------------------------------------------- #
+
+ggplot(x.bysample.a, aes(sample, frp_med)) + 
+  geom_point() + 
+  geom_line(aes(sample, fit_med, color = satellite), size = 1.2, color = "red") +
+  geom_point(aes(sample, frp_adj_med), color = 'blue') +
+  theme_bw() +
+  labs(x = "Sample", y = "Median FRP") 
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+
+# plot of all median points (no satellite distinction) and separately calculated fits
+ggplot(temp.all, aes(sample, frp_med)) + 
+  geom_point() + 
+  geom_line(data = temp.a, aes(sample, fit_med, color = 'aqua'), size = 1.2) +
+  geom_line(data = temp.t, aes(sample, fit_med, color = 'terra'), size = 1.2) +
+  theme_bw()
+
+```
+
+
+
+```{r, echo=F, warning=FALSE}
+
+# Correct separately - AQUA
+
+#Make adjustments - MEDIAN - AQUA
+frp.min <- min(temp.a$fit_med, na.rm = T)
+
+# Apply the minimum across the fit curve to calculate an adjustment ratio
+temp.a$adj_med <- frp.min/temp.a$fit_med
+
+# Now associate the sample # in the full database with the adjustment ratio
+merge.a <- left_join(x_fires_evt.aqua, distinct(dplyr::select(temp.a, sample, adj_med)), by = "sample")
+
+# Multiply the actual frp by that adjustment 
+merge.a$frp_adj <- merge.a$frp * merge.a$adj_med
+
+```
+
+
+```{r, echo=F, warning=FALSE}
+
+# Look at improvement in median for AQUA
+
+test.a <- merge.a %>% group_by(sample) %>% summarize(frp_med = median(frp_adj))
+
+ggplot(test.a, aes(sample, frp_med)) + geom_point(color = "blue") +
+  geom_point(data=temp.a, aes(sample, frp_med), color = "black") + scale_y_log10()
+
+```
+
+
+```{r}
+# combine the corrected datasets
+
+
+x_fires_evt.nosat <- subset(x_fires_evt, is.na(satellite))
+x_fires_evt.nosat$adj_med <- NA
+x_fires_evt.nosat$frp_adj <- NA
+
+x_fires_evt.new <- rbind(merge.a, merge.t, x_fires_evt.nosat)
+
+```

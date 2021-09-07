@@ -1,0 +1,680 @@
+---
+title:  "Plot CA FRP data"
+author: "JJWalker"
+date: "2016-08-01"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
+---
+```{r, echo = FALSE}
+########################################################################### #
+#
+# plot_ca_frp_data.Rmd
+#
+# Objective:  Plot processed MxD14A1 FRP data.
+#
+# Input:     .RData file produced by process_ak_frp_data.R
+#
+# Output:     FRP plots
+#   
+#   JWalker 17 April 2018
+#  
+########################################################################### #
+
+
+# ---- Set environment ----
+
+# Remove existing data and values
+#rm(list=ls())
+
+# Load libraries
+library(ggplot2)
+library(lubridate)
+library(kableExtra)
+library(knitr)
+library(scales)
+
+# Set folder paths
+
+# Set paths
+path_in = 'E:/OneDrive - DOI/projects/ca_frp'
+path_data <- file.path(path_in, "data")
+path_r <- file.path(path_in, 'R')
+rdata_out <- "plot_output.Rdata"
+
+path_plots <- file.path(path_in, "/output/plots") 
+
+# Load functions
+source(file.path(path_in, "R", "ca_functions.R"))
+```
+####Data import
+
+```{r, echo = F}
+# Load data saved from '5_generate_stats.R'
+rdata_in <- "data_from_script4.Rdata"
+load(file = file.path(path_data, rdata_in))
+
+```
+
+<br>
+Data table is saved in this format:
+`r x_fires_evt %>%
+  arrange(fire_year) %>% 
+  filter(ptid == 5767) %>% 
+  kable() %>%
+  kable_styling()`
+```{r, echo = FALSE}
+# ------------------------------------ -
+# #### Set plot parameters ####
+# ------------------------------------
+
+# Set consistent plot parameters
+dodge = position_dodge(0.16)
+theme_set(theme_bw())
+plot_opts <- theme(panel.grid.minor.x = element_blank(),
+                   panel.grid.major.x = element_blank(), # hide gridlines
+                   legend.key = element_blank(),  # remove boxes around legend items
+                   plot.title = element_text(hjust = 0.5)) # center title
+
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+
+# Bin FRP into 50 MW bins, plot against frequency of pixels (area) on log scale for all years--
+# determine if something is changing wrt the intensity of fires over time
+x_sub <- subset(x_fires_evt, !is.na(frp))
+ggplot(x_sub, aes(frp)) + geom_histogram() + xlim(0, 3000)
+
+
+#2.  Winnow those pixels down to those where EVT takes up 90% of the pixel (i.e., "pure" pixels)
+#3. Idea: take ALL FRP values for a given pixel, look at spread
+
+
+```
+
+
+
+
+Boxplot by burn number
+
+```{r, echo= FALSE, warning=FALSE}
+# ------- BOXPLOT by burn number, log plot
+
+title <- "Log FRP by burn number, all years"
+plot_name <- "CA_FRP by burn number_all years_log.png"
+
+
+# Plot boxplot with mean values 
+p <- ggplot(x_fires_evt, aes(as.factor(burn_num), frp)) +
+  scale_y_log10() +
+  geom_boxplot(aes(fill = as.factor(burn_num)), show.legend = F) +
+  geom_point(data = x_frp_summary, aes(as.factor(burn_num), meanFRP, shape = "mean"), size = 7) +
+  scale_shape_manual("", values = 18) +
+  geom_text(data = x_frp_summary, aes(label = round(meanFRP, 1), y = meanFRP + 0.7), 
+            hjust = -0.1, vjust = -1.1) +
+  labs(x = "Burn number", y = "FRP") +
+  ggtitle(title)
+
+p + plot_opts
+
+#ggsave(filename = plot_name, path = path_plots, width = 10, height = 7, units = c("in"), dpi = 600)
+
+```
+
+```{r}
+x_fires_evt <- x_fires_evt %>% filter(sample >= 334 & sample <= 1020)
+```
+
+
+
+
+
+Facet plot of all classes with more than 10 points per burn number
+```{r, echo=FALSE, warning=FALSE}
+#--------- BOXPLOT by max vegetation classes
+
+x_sub <- subset(x_fires_evt, (evt_group %in% x_maxevt_gp_top$evt_group))
+
+p <- ggplot(x_sub, aes(burn_num, frp)) + 
+      geom_boxplot() + 
+      scale_y_log10() +
+      facet_wrap( ~ evt_group, ncol = 2) #+ 
+#      coord_cartesian(ylim = c(0, 800), expand = TRUE)
+p + plot_opts
+
+```
+Restricting the classes to only those of interest (Aspen, Birch/Aspen, Black Spruce, Grassland, Shrubland, Tundra, Wetland, and White Spruce) gives the following
+
+```{r, echo=FALSE, warning=FALSE}
+#--------- BOXPLOT by vegetation groups of interest
+
+goi <- c('Agriculture', 'Barren', 'Developed', 'Forest', 'Grassland',  'Shrubland', 'Water', 'Wetland')
+goi <- c('Forest', 'Shrubland', 'Grassland')
+
+x_sub <- subset(x_fires_evt, evt_group %in% goi & as.numeric(burn_num) < 8)
+#x_sub <- x_fires_evt
+
+p <- ggplot(x_sub, aes(burn_num, frp)) + 
+      geom_boxplot() + 
+      scale_y_log10() +
+      facet_wrap( ~ evt_group, ncol = 2) #+ 
+#      coord_cartesian(ylim = c(0, 800), expand = TRUE)
+p + plot_opts
+
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+#--------- BOXPLOT by vegetation groups NOT of interest
+
+x_sub <- subset(x_fires_evt, !(evt_group %in% goi))
+
+p <- ggplot(x_sub, aes(burn_num, frp)) + 
+      geom_boxplot() + 
+      scale_y_log10() +
+      facet_wrap( ~ evt_group, ncol = 2) #+ 
+#      coord_cartesian(ylim = c(0, 800), expand = TRUE)
+p + plot_opts
+
+```
+
+Histograms of burn distributions with at least 10 points:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+
+
+# -------- HISTOGRAM of distributions
+
+x_sub <- subset(x_fires_evt, as.numeric(burn_num) < 7)
+p <- ggplot(x_sub, aes(x=frp, fill = burn_num)) + 
+      scale_x_log10() +
+      scale_y_log10() +
+      geom_histogram(alpha = 0.5, position = "identity") 
+
+p + plot_opts
+```
+
+Plots of the effect of time since fire on FRP for all pixels regardless of proportion of EVT class:
+
+
+```{r, echo=FALSE}
+# Limit plot to classes of interest
+x_sub <- subset(x_fires_evt) #, evt_group %in% goi)
+
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp))
+```
+
+
+```{r, echo=FALSE}
+
+# Limit plot to classes of interest
+x.sub <- subset(x_fires_evt, evt_group %in% goi)
+
+x.ints <- 
+   x.sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 130, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean.frp = mean(frp, na.rm = T), 
+             med.frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp,na.rm = T)) %>% 
+             filter(n > 10)
+
+ggplot(x.ints, aes(ints, med.frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+```
+
+
+Look at plots of different proportions of EVT class.  If proportion of max EVT class is at least 20% (and that interval contains at least 10 points):
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.20
+x_sub <- subset(x_fires_evt, max_evt_prop > evt_min & evt_group %in% goi) 
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 130, by=10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10) %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+```
+
+```{r, echo=FALSE}
+
+# Plot
+ggplot(x_ints, aes(ints, mean_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Mean FRP')
+
+
+```
+
+
+If proportion of max EVT class is at least 30%:
+
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.30
+x_sub <- subset(x_fires_evt, evt_group %in% goi & max_evt_prop > evt_min)
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10)  %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+```
+
+If proportion of max EVT class is at least 40%:
+
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.40
+x_sub <- subset(x_fires_evt, evt_group %in% goi & max_evt_prop > evt_min)
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10)  %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+```
+
+If proportion of max EVT class is at least 50%:
+
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.50
+x_sub <- subset(x_fires_evt, evt_group %in% goi & max_evt_prop > evt_min)
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10)  %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+
+
+```
+If proportion of max EVT class is at least 60%:
+
+
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.60
+x_sub <- subset(x_fires_evt, evt_group %in% goi & max_evt_prop > evt_min)
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10)  %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+
+
+```
+
+
+
+
+```{r}
+
+# Set threshold for EVT proportion
+evt_min <- 0.70
+x_sub <- subset(x_fires_evt, evt_group %in% goi & max_evt_prop > evt_min)
+
+# Group dataset into time-since-fire intervals
+x_ints <- 
+   x_sub %>% filter(reburn == 1) %>% 
+   mutate(ints = cut(year_int, c(seq(0, 70, 10)))) %>% 
+   group_by(evt_group, ints) %>% 
+   summarise(mean_frp = mean(frp, na.rm = T), 
+             med_frp = median(frp, na.rm = T),
+             n = length(frp),
+             sd = sd(frp, na.rm = T)) %>% 
+             filter(n > 10)  %>% 
+             filter(!is.na(ints))
+
+# Plot
+ggplot(x_ints, aes(ints, med_frp, group = evt_group, color = evt_group)) + 
+  geom_line() + 
+  geom_point() +
+  xlab('Years between fires') +
+  ylab('Median FRP')
+
+
+```
+
+
+
+
+```{r, echo=F}
+
+x_sub$bins <- cut(x_sub$year_int, breaks=c(seq(0, 100, 10)), labels=c("1-10","10-20","20-30", '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-100'))
+                   
+
+
+
+
+```
+
+
+```{r, echo=FALSE}
+# For individual years. This mostly groups data geographically as well.
+
+for (yr in seq(2014, 2020)) {
+  
+  x_yr <- subset(x_fires_evt, fire_year == yr)
+  
+# ------- PLOT by burn number
+  title <- paste0("FRP by burn number, ", yr)
+  plot_name <- paste0("AK_FRP by burn number_", yr, ".png")
+
+  p <- ggplot(x_yr, aes(as.factor(burn_num), log10(frp))) + 
+    geom_boxplot() + 
+    labs(x = "Burn number", y = "log FRP") +
+    ggtitle(title)
+  p + plot_opts
+  ggsave(filename = plot_name, path = path_plots, width = 10, height = 7, units = c("in"), dpi = 600)
+
+
+# ------ PLOT by years since prior burn
+# Drop factors for which there are fewer than 10 points
+  keep <- levels(as.factor(x_yr$year_int))[table(x_yr$year_int) > 10]
+  x_sub_int <- x_yr[x_yr$year_int %in% keep, ]
+
+  title <- paste0("FRP by years since prior burn, ", yr)
+  plot_name <- paste0("AK_FRP by years since prior burn_", yr, ".png")
+
+  p <- ggplot(x_sub_int, aes(as.factor(year_int), log10(frp))) + 
+       geom_boxplot() + 
+       #ylim(0, 1000) + 
+       labs(x = "Years since prior burn", y = "log FRP") +
+       ggtitle(title)
+  p + plot_opts
+
+  ggsave(filename = plot_name, path = path_plots, width = 10, height = 7, units = c("in"), dpi = 600)
+
+# ------- PLOT by year of fire
+  keep <- levels(as.factor(x_yr$FireYear))[table(x_yr$fire_year) > 10]
+  x_sub_yr <- x_yr[x_yr$fire_year %in% keep, ]
+
+  title <- paste0("FRP by year of fire, ", yr)
+  plot_name <- paste0("AK_FRP by year of fire_", yr, ".png")
+
+  p <- ggplot(x_sub_yr, aes(as.factor(fire_year), log10(frp))) + 
+       geom_boxplot() + 
+       #ylim(0, 1000) +
+       labs(x = "Year of fire", y = "log FRP") +
+       ggtitle(title)
+  p + plot_opts
+
+  ggsave(filename = plot_name, path = path_plots, width = 10, height = 7, units = c("in"), dpi = 600)
+  
+}
+```
+
+```{r}
+# -------- PLOT by mean fire interval
+  x_pts <- x_sub_int %>% group_by(year_int) %>% summarize(avg = mean(frp_adj))
+
+x_pts <- subset(x, evt_group == 'WhtSpruce')
+x_pts <-  x_pts %>% group_by(burn_num, year_int) %>% summarise(avg = mean(frp_adj))
+
+lm_eqn2 = function(x){
+  m = lm(y ~ poly(x, 3), x)#3rd degree polynomial
+  eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(r)^2~"="~r2,
+                   list(a = format(coef(m)[1], digits = 2),
+                        b = format(coef(m)[2], digits = 2),
+                        r2 = format(summary(m)$r.squared, digits = 3)))
+  as.character(as.expression(eq))
+}
+
+  #title <- paste0("Mean FRP by year interval, ", yr)
+  #plot_name <- paste0("AK_FRP mean FRP by year ", yr, ".png")
+
+  p <- ggplot(x_pts, aes(year_int, avg)) + 
+       geom_point() + 
+       geom_smooth(method = 'lm', se = FALSE, size = 0.4) +
+       labs(x = "Years since prior burn", y = "FRP") +
+       annotate("text", x = 5, y = 400, label = lm_eqn2(x_pts, "avg", "year_int"), 
+           parse = TRUE, hjust = 0, vjust = 0, color = "#000000") +
+       ggtitle(title)
+  p + plot_opts
+
+#ggsave(filename = plot_name, path = path_plots, width = 10, height = 7, units = c("in"), dpi = 600)
+```
+
+# Calculate semivariograms
+x_copy <- x_yr
+
+# convert degrees to km distances
+x_copy$lon_km <- 110. * (x_copy$longitude - (-125))*cos(x_copy$latitude/(360/(2*pi)))
+x_copy$lat_km <- 110. * (x_copy$latitude-65)
+coordinates(x_copy) = ~lon_km+lat_km
+
+
+# ------- PLOT points in x,y km space  
+plot_name <- paste0("AK_FRP bubble plot ", yr, ".png")
+png(file = file.path(path_plots, plot_name), width = 10, height = 7, units = c("in"), res = 600)
+print(bubble(x_copy, zcol = 'MaxFRP', fill = T, do.sqrt = F, maxsize = 1.8))
+dev.off()
+
+# ------- PLOT variogram
+v = variogram(MaxFRP~1, x_copy)
+level <- c(0.5, 0.95)
+
+plot_name <- paste0("AK_FRP variogram ", yr, ".png")
+png(file = file.path(path_plots, plot_name), width = 10, height = 7, units = c("in"), res = 600)
+print(plot(v, fraction = 0.65, level=level))
+dev.off()
+
+
+# # ------PLOT directional variogram
+#   v.fit = fit.variogram(v, vgm("Sph"))
+#   x_copy.var.det <- variogram(MaxFRP~lat_km+lon_km, data = x_copy)
+#   
+#   plot_name <- paste0("AK_FRP directional variogram ", yr, ".png")
+#   p <- plot(x_copy.var.det)
+#   p
+
+plot_name <- paste0("AK_FRP directional variogram ", yr, ".png")
+
+x_copy.var.dir <- variogram(MaxFRP~1, data = x_copy, alpha = c(0, 45, 90, 135))
+png(file = file.path(path_plots, plot_name), width = 10, height = 7, units = c("in"), res = 600)
+print(plot(x_copy.var.dir))
+dev.off()
+
+}
+
+
+```{r, echo = FALSE}
+
+# --------------------------------- 
+# Stats
+# ---------------------------------
+
+# Calculate 2-way ANOVA; evt group and burn num
+x_anova <- aov(formula = frp ~ evt_group * burn_num, data = x_fires_evt)
+summary(x_anova)
+TukeyHSD(x_anova, which = "burn_num")
+TukeyHSD(x_anova, which = "evt_group")
+
+
+# Calculate anova: FRP vs year_int, evt, and burn_num
+x_anova <- aov(formula = frp ~ year_int * as.factor(evt_group) * burn_num, data = subset(x_fires_evt, reburn > 0))
+summary(x_anova)
+
+```
+
+
+
+Frequency plot by year
+```{r, echo=FALSE, warning=FALSE}
+
+# Create frequency tables
+x_cut <- x_fires_evt[complete.cases(x_fires_evt[, 'frp']), ]
+x_cut$bin <- cut(x_cut$frp, breaks = c(seq(0, 12000, 100)), include.lowest = T)
+
+x_year_bin <- x_cut %>% 
+          group_by(bin, fire_year) %>% 
+          count()
+
+# Break out the lower and upper ranges of the binned intervals
+x_year_bin <- cbind(x_year_bin, lower = as.numeric( sub("\\((.+),.*", "\\1", x_year_bin$bin) ),
+      upper = as.numeric( sub("[^,]*,([^]]*)\\]", "\\1", x_year_bin$bin) ))
+
+x.year.prop <- x_year_bin %>%
+  group_by(fire_year) %>% 
+  mutate(prop = n/sum(n)) 
+
+ggplot(x.year.prop, aes(upper, prop, group = as.factor(fire_year), 
+                        color = as.factor(fire_year),
+                        shape = as.factor(fire_year))) + 
+  geom_point()  + 
+  theme_bw() +
+  xlab("FRP") +
+  ylab('Frequency') +
+  scale_x_log10() + 
+  scale_y_log10() +
+  scale_shape_manual(name = 'Year', values=c(19, 3, 19, 4, 19, 5, 19, 6, 19, 7, 19, 8, 19, 9, 20, 19, 8, 19, 9, 20)) +
+  scale_color_discrete(name = 'Year') +
+  annotation_logticks(scaled = TRUE)
+
+
+
+```
+
+Frequency plot by max veg class
+
+```{r, echo=FALSE, warning=FALSE}
+
+goi <- c('Developed', 'Forest', 'Grassland',  'Shrubland')
+
+# Create frequency tables
+x.evt.sub <- x_fires_evt[x_fires_evt$evt_group %in% goi & x_fires_evt$frp < 10000, ]
+x.evt.cut <- x.evt.sub[complete.cases(x.evt.sub[, 'frp']), ]
+x.evt.cut$bin <- cut(x.evt.cut$frp, breaks = c(seq(0, 12000, 100)), include.lowest = T)
+
+x.evt.bin <- x.evt.cut %>% 
+          group_by(bin, evt_group) %>% 
+          count()
+
+# Break out the lower and upper ranges of the binned intervals
+x_cut.evt.bin <- cbind(x.evt.bin, lower = as.numeric( sub("\\((.+),.*", "\\1", x.evt.bin$bin) ),
+      upper = as.numeric( sub("[^,]*,([^]]*)\\]", "\\1", x.evt.bin$bin) ))
+
+
+x.evt.prop <- x_cut.evt.bin %>%
+  group_by(evt_group) %>% 
+  mutate(prop = n/sum(n)) 
+
+
+ggplot(subset(x.evt.prop, evt_group %in% goi), aes(upper, prop, group = evt_group, color = evt_group, shape = evt_group)) + 
+  geom_point() +
+  scale_x_log10() + 
+  scale_y_log10(limits = c(1e-04, 1)) +
+  xlab("FRP") +
+  ylab('Frequency') +
+  scale_shape_manual(name = 'EVT group', values=c(19, 3, 19, 4, 19, 5, 19, 6),
+                     breaks=c("Developed", "Forest", "Grassland", "Shrubland"),
+                       labels=c( "Developed", "Forest", "Grassland", "Shrubland")) +
+  scale_color_discrete(name = "EVT group",
+                       breaks=c( "Developed", "Forest", "Grassland", "Shrubland"),
+                       labels=c( "Developed", "Forest", "Grassland", "Shrubland")) +
+  annotation_logticks(scaled = TRUE)
+
+
+```
+
+
+```{r, echo=FALSE, warning = FALSE}
+
+ggplot(x.test3, aes(upper, prop, group = fire_year, color = fire_year, shape = fire_year)) + scale_x_log10() + scale_y_log10() + geom_point()
+
+# now make that same plot, split into before/after 2000....nope!
+
+
+```
+

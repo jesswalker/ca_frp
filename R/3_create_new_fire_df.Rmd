@@ -11,13 +11,14 @@ output:
 ---
 
 
-####_4_create_new_fire_df.Rmd_
+####_3_create_new_fire_df.Rmd_
 
-This script creates new, merged data of EVT and fire perimeter information.  
+This script creates a new, merged dataset of EVT and fire perimeter information.  
 
-_Input files_:  processed_data_prior_to_new_df.RData  
+_Input files_:  data_from_script2.RData  
 
-_Output file_:  new_fire_df.RData
+_Output file_:  data_from_script3.RData
+
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
@@ -36,21 +37,23 @@ load_libraries <- function(libs){
 #  Try/install packages
 load_libraries(c("lubridate", "dplyr") )
 
-# Set paths
+# Set paths and files
 path_in = "/home/jovyan/ca_frp"
 path_data <- file.path(path_in, "data")
-rdata <- "new_fire_df.RData"
-```
-
-```{r}
-
-#load(file.path(path_data,'processed_data_prior_to_new_df.RData'))
-load(file.path(path_data,'data_from_script2.RData'))
+data_in <- "data_from_script2.RData"
+data_out <- "data_from_script3.RData"
 
 ```
 
+```{r, echo = FALSE}
 
-```{r, echo=FALSE, warning=F}
+# Load input data
+load(file.path(path_data, data_in))
+
+```
+
+
+```{r, echo = FALSE, warning = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Set up the new fire df ####
@@ -65,18 +68,18 @@ load(file.path(path_data,'data_from_script2.RData'))
   x_holder <- setNames(data.frame(matrix(ncol = 8, nrow = 0)),  c('ptid', 'lat', 'long', 'fire_year', 'frp', 'fireid', 'sample',  'satellite'))
 
 # Create df without classes
-  x_noclasses <- x_orig %>% select(-starts_with('class'))
+  x_noclasses <- df_evt_and_fire %>% select(-starts_with('class'))
   
 # Create df of classes info for each pixel. Remove duplicates to get 1 row for each ptid. Include areal sum for each pixel
-  x_classes <- x_orig %>% 
+  x_classes <- df_evt_and_fire %>% 
                 select(ptid, starts_with('class')) %>% 
-                distinct(ptid, .keep_all = T) %>% 
-                mutate(evt_sum = rowSums(.[, -1], na.rm = TRUE))
+                distinct(ptid, .keep_all = T)  %>% 
+                mutate(evt_sum = rowSums(across(starts_with("class")), na.rm = TRUE))
 
 ```
 
 
-```{r, echo=FALSE}
+```{r, echo = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Function to create new fire df ####
@@ -119,7 +122,7 @@ create_new_fire_df = function(f) {
 
 ```  
 
-```{r, echo=FALSE}
+```{r, echo = FALSE}
 
 # Split df since the function bombs with all included
 
@@ -133,11 +136,10 @@ x_noclasses_ptid_lte40000 <-  subset(x_noclasses, ptid2 > 30000 & ptid2 <= 40000
 x_noclasses_ptid_lte50000 <-  subset(x_noclasses, ptid2 > 40000 & ptid2 <= 50000)
 x_noclasses_ptid_lte60000 <-  subset(x_noclasses, ptid2 > 50000 & ptid2 <= 60000)
 
-
 ```
 
 
-```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+```{r, echo = FALSE, warning = FALSE, message = FALSE, include = FALSE}
 
 # ---------------------------------------------------------------- #
 #### Create new fire dataframe ####
@@ -190,23 +192,20 @@ x_fires_noevt <- x_fires_noevt[order(x_fires_noevt$ptid, x_fires_noevt$fire_year
 
 # Remove all rows in which MODIS-era fires have an NA FRP
 # dplyr rocks with the anti_join
-frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_orig$modis_date)))
+frpNA <- subset(x_fires_noevt, is.na(frp) & fire_year >= min(year(x_noclasses$modis_date)))
 x_fires_noevt <- x_fires_noevt %>% anti_join(., frpNA)
 
-# Remove all points for which frp is only NA
+# Remove points for which all associated frp values are only NA
 x_fires_noevt <- x_fires_noevt %>% group_by(ptid) %>% filter(!all(is.na(frp)))
 
 ```
 
 
-
 ```{r}
 
 # Save the image 
-
-save.image(file = file.path(path_in, "R", rdata))
-save(x_fires_noevt, x_classes, file = file.path(path_in, "R", "code4_output.Rdata")) 
-
+print(paste0("R data file saved to ", file.path(path_data, data_out)))
+save(x_fires_noevt, x_classes, file = file.path(path_data, data_out)) 
 
 ```
 

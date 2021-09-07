@@ -2,41 +2,37 @@
 # 
 # 1_format_gee_file_for_arc_import.R
 #
-# This helper module imports the csv files that result from running the script
+# This module imports the csv files that result from running the script
 # FRP_EVT in GEE. It reeformats column headings so they can be read in Arc. 
 # Output files can be then processed via the python script 
 # 
 # intersect_frp_data_with_fire_perimeters.py
 #
-# Rbinding into a single file creates a world of trouble for Arc, hence the 
-# multiple-file output.
-#
-# Input: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy.csv
-# Output: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy_processed.csv
+# Input files: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy.csv
+# Output files: home/jovyan/ca_frp/data/gee/maxFRP_CA_gte4sqkm_yyyy_processed.csv
 #
 # To complete the next step--intersecting GEE files with vector fire data via
-# the python script intersect_frp_data_with_fire_perimeters.py),
-# outputting files with all 100+ EVT classes removed was necessary:
+# the python script--outputting files with all 100+ EVT classes removed was necessary:
 #
 # Output2: maxFRP_CA_gte4sqkm_yyyy_processed_slim.csv 
 #
-# Also added a consolidated version:
+# A consolidated version of all slim files is ingested in the python script:
 # Output3: maxFRP_CA_gte4sqkm_yyyytoyyyy_processed_slim.csv (hardcoded filename)
 # 
 ########################################################################### #
 
 library(dplyr)
 
-# Set path info
-path_in = "/home/jovyan/ca_frp/data/gee/"
-path_out = "/home/jovyan/ca_frp/data"
-filenames_in <- list.files(path_in, pattern = "*.csv")
-filename_out_slim_all <- "maxFRP_CA_gte4sqkm_2001to2020_processed_slim.csv"
+# Set paths and files
+path_in = "/home/jovyan/ca_frp"
+path_data = file.path(path_in, "data")
+filenames_in <- list.files(file.path(path_data, "gee"), pattern = "*.csv")
+filename_out_slim_all <- "maxFRP_CA_gte4sqkm_20012to2020_processed_slim.csv"
 
 # Process each file
 for (filename_in in filenames_in) {
   
-  x <- read.csv(file.path(path_in, filename_in), header = T)
+  x <- read.csv(file.path(path_data, "gee", filename_in), header = T)
   filename_sub <- substr(basename(filename_in), 1, nchar(basename(filename_in)) - 4)
   filename_out <- paste0(filename_sub, "_processed.csv")
   filename_out_slim <- paste0(filename_sub, "_processed_slim.csv")
@@ -90,21 +86,21 @@ for (filename_in in filenames_in) {
   x <- x[-1, ]
   
   # save output
-  write.csv(x, file = file.path(path_in, filename_out), row.names = FALSE)
+  write.csv(x, file = file.path(path_data, "gee", filename_out), row.names = FALSE)
   
-  # remove EVT classes by dropping all 'class' columns
+  # Create "slim" file by dropping all EVT columns
   x <- x %>% select(-contains('class'))
   
-  write.csv(x, file = file.path(path_in, filename_out_slim), row.names = FALSE)
+  write.csv(x, file = file.path(path_data, "gee", filename_out_slim), row.names = FALSE)
 }
 
 # Merge all "slim" files into a single one that can be processed in Arc
 
-setwd(path_in)
+setwd(file.path(path_data, "gee"))
 mergedData <- 
   do.call(rbind,
-          lapply(list.files(path_in, pattern = "*slim.csv"), read.csv))
+          lapply(list.files(file.path(path_data, "gee"), pattern = "*slim.csv"), read.csv))
 
-write.csv(mergedData, file = file.path(path_out, filename_out_slim_all), row.names = FALSE)
+write.csv(mergedData, file = file.path(path_data, "gee", filename_out_slim_all), row.names = FALSE)
 
 

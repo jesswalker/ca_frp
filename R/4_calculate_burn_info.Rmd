@@ -1,0 +1,232 @@
+---
+title:  "Calculate burn info"
+author: "JJWalker"
+date: "2021-08-25"
+output:
+  html_notebook:
+    highlight: tango
+    mathjax: null
+    number_sections: no
+    theme: spacelab
+---
+
+
+####_4_calculate_burn_info.Rmd_
+
+This script ingests the full df produced in 3_create_new_fire_df.Rmd and gnerates the burn information (burn number,
+years between burns, etc).
+
+_Input files_:  data_from_script3.RData
+
+_Output file_:  data_from_script4.RData
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+# ---------------------------------------------------------------- #
+#### Set up directories and filenames ####
+# ---------------------------------------------------------------- #
+
+load_libraries <- function(libs){
+  for(lib in libs){
+    if(!require(lib, character.only = TRUE)){    # Require returns TRUE if package loaded
+      install.packages(lib, dependencies = TRUE) # If package couldn't load, re-install
+      require(lib, character.only = TRUE)        # Load package after installing
+    }
+  }
+}
+#  Try/install packages
+load_libraries(c("lubridate", "dplyr")) # "kableExtra", "knitr") )
+#devtools::install_github("haozhu233/kableExtra")
+#library(kableExtra)
+
+# Set paths and files
+path_in <-  "/home/jovyan/ca_frp"
+path_data <- file.path(path_in, "data")
+data_in <- "data_from_script3.RData"
+data_out <- "data_from_script4.RData"
+path_r <- file.path(path_in, 'R')
+source(file.path(path_r, "ca_functions.R"))
+
+```
+
+```{r, echo = FALSE}
+
+load(file.path(path_data, data_in))
+
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Define EVT columns ####
+# ---------------------------------------------------------------- #
+# Read in data file from GDrive:  "MyDrive/Work/projects/ca_frp/evt_2014_classes_ca.csv"
+
+# data_url <- "1y3DCmYOZFBf0G2_VfdnMHFHAyo2pfGpW" # google file ID for 2014 EVT classes
+# data_url <-  "1S9AHv-NC5Jxz5NC8BxO2vU-RcV2f0hHA"  # google ID for 2001 EVT classes
+
+# 2001 Sleeter grouped classes
+data_url <-  "1l3-MmB6ut3GAUyziFyryW_yw4YmwtJUH"  # google ID for 2001 EVT classes
+evt_classes <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download", data_url))
+
+# Change column names to conform to existing 
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group') # headings for 2014 data
+#names(evt_classes) <- c('evt_number', 'description', 'evt_group', 'evt_group2', 'evt_fuel', 'link') # 2001 
+names(evt_classes) <- c('evt_group_desc', 'evt_group', 'evt_desc', 'evt_number', 'color', 'legend', 'description', 'isautoname')  
+
+evt_classes <- evt_classes %>% 
+               select(-c(color:isautoname))
+
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Function - Calculate burn number ####
+# ---------------------------------------------------------------- #
+# Count the number of times each point appears: 1 = 1st fire, 2 = 2nd, etc.
+  get_fire_order = function(df) {
+    df <- df %>% 
+      group_by(ptid) %>% 
+      arrange(fire_year) %>%  # put in ascending order
+      mutate(burn_num = seq_along(fire_year)) # assign a sequence number
+    df <- data.frame(df)
+    df$reburn <- 0 
+    
+    df <- df %>%
+       mutate(reburn = ifelse(burn_num > 1, 1, 0)) # reburn: no = 0, yes = 1
+    df$year_int <- ave(df$fire_year, factor(df$ptid), FUN=function(t) c(0, diff(t))) # get years between fires
+  return(df)
+  }
+
+```
+
+
+```{r, echo = FALSE}
+
+# Remove all points that have an FRP reading wthout an associated fire ID
+# this step constrains points to only those within identified fire boundaries
+
+tmp <- subset(x_fires_noevt, is.na(fireid) & !is.na(frp))
+x_fires_noevt <- x_fires_noevt %>% filter(!(ptid %in% tmp$ptid))
+                                          
+```
+
+```{r}
+
+# Remove all points in scan angles > 27degrees (only samples 334 - 1020)
+
+#x_fires_noevt <- x_fires_noevt %>% filter(sample >= 334 & sample <= 1020)
+
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Get burn number for each point ####
+# ---------------------------------------------------------------- #
+x_fires_noevt <- get_fire_order(x_fires_noevt)
+
+```
+
+
+```{r, echo = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Merge fire df with EVT classes ####
+# ---------------------------------------------------------------- #
+# Necessary housekeeping
+x_fires_noevt$ptid <- as.factor(x_fires_noevt$ptid)
+x_fires_noevt$satellite <- as.factor(x_fires_noevt$satellite)
+x_classes$ptid <- as.numeric(x_classes$ptid)
+
+# Merge
+x_fires_evt <- merge(x_fires_noevt, x_classes, by = c("ptid"), all.x = T)
+
+```
+The ingested dataset has redundancies because FRP pixels are paired with each coincident fire perimeter from all previous years. After processing, an example point id has this format:
+
+`r x_fires_noevt %>%
+  filter(ptid == x_fires_evt[x_fires_evt$burn_num == 4,][[1]][1])# %>% 
+#  kable() %>%
+#  kable_styling()`
+  
+Fire year is assumed to be MODIS year for all fires 2002 - 2016. Other notes:
+
+  * FRP = NA if the fire was prior to the MODIS era (documented only through the BLM history database)  
+  * FRP pixels without a corresponding BLM database fire have BLM fire ID = NA  
+  * Points with an associated BLM fire ID after 2001 but without a corresponding FRP are excluded; although the fire could've been missed due to clouds, it could also have been that the area didn't burn (the GIS database does not differentiate between burned and unburned areas within fire perimeters)
+  * Satellite 0 = Terra, 1 = Aqua
+
+###EVT classes
+
+After EVT classes are added back to the dataframe, the process is to:
+
+1. Determine EVT class with the greatest proportion in each 1-km MODIS pixel
+2. Calculate area of that EVT class in each pixel
+3. Remove pixels in which none of the classes had a majority
+
+```{r, echo = FALSE, warning = FALSE}
+
+# ---------------------------------------------------------------- #
+#### Process EVT classes ####
+# ---------------------------------------------------------------- #
+  
+  # Record the EVT class that had the greatest area in each 1-km MODIS pixel
+  x_fires_evt$max_evt_cat <- apply(x_fires_evt, 1, function(y) names(y[grepl("class", names(y))])[which.max(y[grepl("class", names(y))])[1]])
+  
+  # ...record the area that class represented
+  x_fires_evt$max_evt_area <- apply(x_fires_evt[grepl("class", names(x_fires_evt))], 1, max, na.rm = TRUE)
+  
+  # ...calculate the proportion of pixels that class represented
+  x_fires_evt$max_evt_prop <- x_fires_evt$max_evt_area/x_fires_evt$evt_sum
+  
+  # Remove rows in which max_class == NA; this means none of the classes had a majority
+  x_fires_evt <- x_fires_evt[!is.na(x_fires_evt$max_evt_cat), ]
+  
+  # Convert to factor
+  x_fires_evt$max_evt_cat <- as.factor(x_fires_evt$max_evt_cat)
+  
+  # Trim "class" prefix off classes
+  x_fires_evt$max_evt_cat <- gsub('class', '', x_fires_evt$max_evt_cat)
+  
+  x_fires_evt <- x_fires_evt %>% 
+                 mutate(max_evt_cat = as.numeric(max_evt_cat))
+  
+  # Merge with file of EVT classes to associate a name with each class
+  x_fires_evt <- left_join(x_fires_evt, evt_classes, c("max_evt_cat" = "evt_number"))
+  
+  # Get rid of all individual classes. dplyr rocks!
+  x_fires_evt <- x_fires_evt %>% select(-starts_with('class'))
+  
+  # Convert burn_num to factor
+  x_fires_evt$burn_num <- as.factor(x_fires_evt$burn_num)
+  
+  # Rearrange 
+#  x_fires_evt <- x_fires_evt %>% select(ptid:evt_number, max_evt_cat)
+
+```
+
+`r x_fires_evt %>%
+  filter(ptid == 5767) %>% 
+  arrange(fire_year) %>% 
+  kable() %>%
+  kable_styling()`
+
+
+
+
+####Save data
+
+RData file is saved to `r file.path(path_r, data_out)`
+```{r, echo=FALSE}
+
+# Save data and environment settings   
+print(paste0("R data file saved to ", file.path(path_data, data_out)))
+save.image(file = file.path(path_data, data_out))
+
+```
